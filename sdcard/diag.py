@@ -209,8 +209,7 @@ class SDCardDiagnostics:
         print("microSD Diagnostics — ESP32-P4-NANO (SDMMC)")
         print("=" * 78)
         if not self.mount(show=True):
-            print("  No card mounted. Check the card is inserted and FAT-formatted,")
-            print("  and that CLK/CMD/D0-D3 pins match this board.")
+            # mount() already printed the precise reason.
             print("=" * 78)
             return
         print("\nCard info:")
