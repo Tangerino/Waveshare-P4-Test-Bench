@@ -1,7 +1,35 @@
-# ESP32-P4 Hardware Tests
+# Waveshare ESP32-P4-NANO Test Bench
 
-Hardware test tooling for the **Waveshare ESP32-P4-NANO** board. Each
-peripheral lives in its own package; `main.py` is a top-level selector.
+![MicroPython](https://img.shields.io/badge/MicroPython-%E2%89%A5v1.29-blue)
+![Board](https://img.shields.io/badge/board-ESP32--P4--NANO-orange)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
+
+MicroPython hardware diagnostics for the **Waveshare ESP32-P4-NANO** — eight
+self-contained tests (WiFi, Ethernet, CPU/memory/flash, microSD, I2C,
+sleep/wake, audio, GPIO), each with a one-shot report and an interactive menu.
+Every peripheral is its own package; `main.py` is a top-level selector.
+
+> **Board-specific.** Pin maps and config target the **ESP32-P4-NANO**. Other
+> ESP32-P4 boards differ — edit the pin constants at the top of each
+> `*/diag.py`. Pins are sourced from Waveshare's schematic and examples (cited
+> per section).
+
+## Quick start
+
+```sh
+# 1. Flash MicroPython for the ESP32-P4 (>= v1.29.0-preview, C6_WIFI variant).
+#    microSD needs this; every other test also runs on older builds.
+#    See firmware/BUILD.md (download a prebuilt image or build your own).
+
+# 2. Point at your board and set WiFi credentials.
+export PORT=/dev/tty.usbmodemXXXX     # your serial port (or edit deploy.sh)
+cp secrets_example.py secrets.py      # then edit WIFI_SSID / WIFI_PASSWORD
+
+# 3. Deploy and run.
+./deploy.sh             # upload everything + open the interactive menu
+./deploy.sh --system    # ...or a one-shot report for a single test
+./deploy.sh --help      # all options
+```
 
 ## Requirements
 
@@ -46,7 +74,7 @@ build your own.
 p4/
 ├── deploy.sh          # upload + run helper (mpremote wrapper)
 ├── firmware/BUILD.md  # how to build a P4 image with microSD/LDO support
-├── main.py            # boot entry point → hardware selector (WiFi / Ethernet)
+├── main.py            # boot entry point → top-level selector (all 8 tests)
 ├── netutils.py        # shared IP helpers: resolve, tcp_check, ping, run_action
 ├── wifi/              # WiFi diagnostics package
 │   ├── __init__.py    # re-exports WiFiDiagnostics, main
@@ -107,11 +135,13 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --help    # all options
 ```
 
-Manual equivalent:
+Manual equivalent (what `deploy.sh` does — copy the root files, `secrets.py`,
+and every package directory, then open the REPL):
 
 ```sh
-mpremote connect $PORT fs cp main.py :main.py + fs cp netutils.py :netutils.py \
-  + fs cp -r wifi : + fs cp -r eth : + fs cp -r system :
+mpremote connect $PORT \
+  fs cp main.py :main.py + fs cp netutils.py :netutils.py + fs cp secrets.py :secrets.py \
+  + fs cp -r wifi eth system sdcard i2c sleep audio gpio :
 mpremote connect $PORT repl
 ```
 
@@ -227,14 +257,14 @@ a.tone(440, 2)                  # 440 Hz sine, 2 s (default vol 90, amp 28000)
 a.tone(440, 2, volume=100, amp=32000)   # max level
 a.ring(4)                       # telephone ring: NA ringback 440+480 Hz
 a.ring(2, off_ms=4000)          # true cadence (2 s on / 4 s off)
-a.song("ode")                   # by name: ode/twinkle/scale/birthday/mario
+a.song('ode')                   # by name: ode/twinkle/scale/birthday/mario
 a.song(2)                       # ...or by number (a.song_names() lists them)
 a.beep()                        # short 1 kHz beep
 ```
 
 `song()` plays a built-in tune (`ode`, `twinkle`, `scale`, `birthday`, `mario`)
 as a note sequence; `melody([(note, ms), ...])` plays your own — notes are
-`NOTES` keys (`"C4"`, `"A4"`, …) or raw Hz, with a short per-note fade to avoid
+`NOTES` keys (`'C4'`, `'A4'`, …) or raw Hz, with a short per-note fade to avoid
 clicks.
 
 `ring()` plays the North American ringback (dual-tone 440+480 Hz) with a
@@ -261,7 +291,7 @@ a generic pin tool — wire an LED+resistor or a meter to any header pin.
 from gpio import GPIODiagnostics
 g = GPIODiagnostics()
 g.blink(2, count=10, period_ms=200)   # blink GPIO2
-g.high(2); g.low(2); g.read(2, pull="up")
+g.high(2); g.low(2); g.read(2, pull='up')
 ```
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
@@ -291,18 +321,19 @@ e = EthernetDiagnostics()
 e.up()            # bring link up + DHCP
 e.report()        # status, IP, connectivity, ping
 e.ifconfig()
-e.ping("8.8.8.8")
+e.ping('8.8.8.8')
 e.down()
 ```
 
 ## Single entry point
 
-Resetting the board runs `main.py`, which launches the WiFi menu. From the
-REPL you can also call it directly:
+On boot the board runs `main.py`, the **top-level selector** (WiFi / Ethernet /
+System / microSD / I2C / Sleep / Audio / GPIO). Each package also exposes its
+own menu and class for direct REPL use:
 
 ```python
-import wifi
-d = wifi.main()        # menu loop; returns the object so `d` stays usable
+import system
+system.main()          # that package's menu; returns its object so it stays usable
 ```
 
 ## Credentials (secrets.py)
@@ -317,9 +348,9 @@ cp secrets_example.py secrets.py     # then edit WIFI_SSID / WIFI_PASSWORD
 `deploy.sh` uploads `secrets.py` to the board when present; `wifi/diag.py`
 reads `WIFI_SSID` / `WIFI_PASSWORD` from it for `connect()`'s defaults. If
 `secrets.py` is absent the defaults are blank — pass credentials explicitly:
-`d.connect("ssid", "pw")`.
+`d.connect('ssid', 'pw')`.
 
-## Use (REPL)
+## WiFi (REPL)
 
 ```python
 from wifi import WiFiDiagnostics
@@ -328,11 +359,11 @@ d = WiFiDiagnostics()
 d.report()                # full one-shot: scan, power, link, connectivity, ping
 d.scan()                  # list networks (sorted by signal)
 d.connect()               # join with default creds (blocks until GOT_IP/timeout)
-d.connect("ssid", "pw")   # ...or explicit creds
+d.connect('ssid', 'pw')   # ...or explicit creds
 d.link()                  # current association + RSSI
 d.ifconfig()              # IP / netmask / gateway / DNS
 d.connectivity()          # DNS resolution + internet reachability
-d.ping("8.8.8.8")         # ICMP echo, RTT min/avg/max + loss%
+d.ping('8.8.8.8')         # ICMP echo, RTT min/avg/max + loss%
 d.monitor()               # live RSSI bar graph (Ctrl-C to stop)
 d.monitor(count=10)       # ...or a fixed number of samples
 d.power()                 # read power-save mode + TX power
@@ -374,6 +405,28 @@ d.disconnect()
 - [Ethernet (EMAC/PHY)](https://docs.espressif.com/projects/esp-idf/en/stable/esp32p4/api-reference/network/esp_eth.html)
 - [Sleep modes](https://docs.espressif.com/projects/esp-idf/en/stable/esp32p4/api-reference/system/sleep_modes.html)
 
+## Contributing
+
+Each test is a self-contained package exposing a `*Diagnostics` class and a
+`main()` menu. To add one:
+
+1. Create `yourtest/` with `__init__.py` (re-export the class + `main`) and
+   `diag.py`.
+2. Add `yourtest` to `PKGS` in `deploy.sh` and a line to the selector in
+   `main.py`.
+3. Cite the source for any board-specific pins (schematic / vendor example).
+4. Format and lint before opening a PR:
+
+```sh
+ruff format .
+ruff check .
+```
+
+Issues and PRs welcome — especially pin maps / results for **other ESP32-P4
+boards**.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The ES8311 register init table in `audio/diag.py`
+is adapted from the MIT-licensed
+[MicroPython ES8311 driver by raptor09010](https://github.com/raptor09010/Micropython-ES8311-Library).
