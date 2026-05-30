@@ -225,7 +225,8 @@ a.tone(440, 2)                  # 440 Hz sine, 2 s (default vol 90, amp 28000)
 a.tone(440, 2, volume=100, amp=32000)   # max level
 a.ring(4)                       # telephone ring: NA ringback 440+480 Hz
 a.ring(2, off_ms=4000)          # true cadence (2 s on / 4 s off)
-a.song("ode")                   # ode / twinkle / scale / birthday / mario
+a.song("ode")                   # by name: ode/twinkle/scale/birthday/mario
+a.song(2)                       # ...or by number (a.song_names() lists them)
 a.beep()                        # short 1 kHz beep
 ```
 

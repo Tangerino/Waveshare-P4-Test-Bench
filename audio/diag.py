@@ -21,7 +21,8 @@
 #   a.probe()              # confirm ES8311 chip ID over I2C
 #   a.tone(440, 2)         # play a 440 Hz tone for 2 s out the speaker
 #   a.ring(4)              # telephone ring (NA ringback 440+480 Hz, cadence)
-#   a.song("ode")          # play a built-in melody (ode/twinkle/scale)
+#   a.song("ode")          # play a built-in melody by name...
+#   a.song(2)              # ...or by number (see a.song_names())
 #   a.report(); main()
 
 import array
@@ -293,12 +294,23 @@ class AudioDiagnostics:
             self._close(h)
         return {"notes": len(seq)}
 
+    @staticmethod
+    def song_names():
+        """Sorted list of built-in song names (stable index for selection)."""
+        return sorted(SONGS)
+
     def song(self, name="ode", show=True):
-        """Play a built-in song. Names: see SONGS."""
+        """Play a built-in song by name ("ode") or 1-based number (1)."""
+        if isinstance(name, int):
+            names = self.song_names()
+            if not (1 <= name <= len(names)):
+                print("  invalid song number {} (1..{})".format(name, len(names)))
+                return None
+            name = names[name - 1]
         seq = SONGS.get(name)
         if not seq:
             print("  unknown song '{}'. Available: {}".format(
-                name, ", ".join(sorted(SONGS))))
+                name, ", ".join(self.song_names())))
             return None
         if show:
             print("  Playing '{}' ({} notes)...".format(name, len(seq)))
@@ -359,9 +371,12 @@ def main(a=None):
             n = input("rings [4]: ").strip()
             netutils.run_action(lambda: a.ring(int(n) if n else 4))
         elif choice == "6":
-            name = input("song {} [ode]: ".format(
-                tuple(sorted(SONGS)))).strip() or "ode"
-            netutils.run_action(lambda: a.song(name))
+            names = a.song_names()
+            for i, nm in enumerate(names, 1):
+                print("    {}) {}".format(i, nm))
+            sel = input("song number [1]: ").strip()
+            num = int(sel) if sel else 1
+            netutils.run_action(lambda: a.song(num))
         elif choice == "0":
             return a
         else:
