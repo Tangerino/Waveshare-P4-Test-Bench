@@ -21,6 +21,7 @@
 #   a.probe()              # confirm ES8311 chip ID over I2C
 #   a.tone(440, 2)         # play a 440 Hz tone for 2 s out the speaker
 #   a.ring(4)              # telephone ring (NA ringback 440+480 Hz, cadence)
+#   a.song("ode")          # play a built-in melody (ode/twinkle/scale)
 #   a.report(); main()
 
 import array
@@ -54,6 +55,45 @@ ES8311_DEINIT = (
     (0x32, 0x00), (0x17, 0x00), (0x0E, 0x6A), (0x12, 0x02), (0x14, 0x10),
     (0x0D, 0xFC), (0x15, 0x00), (0x37, 0x08), (0x00, 0x1F),
 )
+
+# Equal-tempered note frequencies (Hz, A4=440). "R" = rest.
+NOTES = {
+    "R": 0,
+    "C4": 262, "C#4": 277, "D4": 294, "D#4": 311, "E4": 330, "F4": 349,
+    "F#4": 370, "G4": 392, "G#4": 415, "A4": 440, "A#4": 466, "B4": 494,
+    "C5": 523, "C#5": 554, "D5": 587, "D#5": 622, "E5": 659, "F5": 698,
+    "F#5": 740, "G5": 784, "G#5": 831, "A5": 880, "A#5": 932, "B5": 988,
+    "C6": 1047,
+}
+
+_Q = 350  # quarter-note ms; _H = half, _E = eighth
+_H, _E = _Q * 2, _Q // 2
+
+# Songs: list of (note, duration_ms). Public-domain melodies.
+SONGS = {
+    "ode": [  # Beethoven — Ode to Joy
+        ("E4", _Q), ("E4", _Q), ("F4", _Q), ("G4", _Q),
+        ("G4", _Q), ("F4", _Q), ("E4", _Q), ("D4", _Q),
+        ("C4", _Q), ("C4", _Q), ("D4", _Q), ("E4", _Q),
+        ("E4", _Q + _E), ("D4", _E), ("D4", _H),
+    ],
+    "twinkle": [  # Twinkle Twinkle Little Star
+        ("C4", _Q), ("C4", _Q), ("G4", _Q), ("G4", _Q),
+        ("A4", _Q), ("A4", _Q), ("G4", _H),
+        ("F4", _Q), ("F4", _Q), ("E4", _Q), ("E4", _Q),
+        ("D4", _Q), ("D4", _Q), ("C4", _H),
+        ("G4", _Q), ("G4", _Q), ("F4", _Q), ("F4", _Q),
+        ("E4", _Q), ("E4", _Q), ("D4", _H),
+        ("G4", _Q), ("G4", _Q), ("F4", _Q), ("F4", _Q),
+        ("E4", _Q), ("E4", _Q), ("D4", _H),
+        ("C4", _Q), ("C4", _Q), ("G4", _Q), ("G4", _Q),
+        ("A4", _Q), ("A4", _Q), ("G4", _H),
+        ("F4", _Q), ("F4", _Q), ("E4", _Q), ("E4", _Q),
+        ("D4", _Q), ("D4", _Q), ("C4", _H),
+    ],
+    "scale": [(n, 200) for n in
+              ("C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5")],
+}
 
 
 class AudioDiagnostics:
@@ -202,6 +242,54 @@ class AudioDiagnostics:
         """Short confirmation beep (1 kHz, ~1 s)."""
         return self.tone(1000, 1, rate=16000, volume=90, show=show)
 
+    # -- melody / song ---------------------------------------------------
+
+    @staticmethod
+    def _note_buf(freq, rate, ms, amp):
+        """One note as 16-bit samples, with ~5 ms fade in/out (anti-click)."""
+        n = max(1, rate * ms // 1000)
+        buf = array.array("h", bytearray(2 * n))
+        if freq <= 0:  # rest
+            return buf
+        step = 2.0 * math.pi * freq / rate
+        fade = min(n // 2, max(1, rate // 200))
+        for i in range(n):
+            v = amp * math.sin(step * i)
+            if i < fade:
+                v = v * i / fade
+            elif i >= n - fade:
+                v = v * (n - i) / fade
+            buf[i] = int(v)
+        return buf
+
+    def melody(self, seq, rate=16000, volume=90, amp=26000, gap_ms=20,
+               show=True):
+        """Play a sequence of (note, duration_ms). note is a NOTES key or Hz."""
+        h = self._open(rate, volume)
+        try:
+            for note, ms in seq:
+                freq = NOTES.get(note, 0) if isinstance(note, str) else note
+                h[2].write(self._note_buf(freq, rate, ms, amp))
+                if gap_ms:
+                    h[2].write(self._note_buf(0, rate, gap_ms, amp))
+        finally:
+            self._close(h)
+        return {"notes": len(seq)}
+
+    def song(self, name="ode", show=True):
+        """Play a built-in song. Names: see SONGS."""
+        seq = SONGS.get(name)
+        if not seq:
+            print("  unknown song '{}'. Available: {}".format(
+                name, ", ".join(sorted(SONGS))))
+            return None
+        if show:
+            print("  Playing '{}' ({} notes)...".format(name, len(seq)))
+        self.melody(seq, show=False)
+        if show:
+            print("  done.")
+        return {"song": name}
+
     # -- report ----------------------------------------------------------
 
     def report(self):
@@ -224,7 +312,8 @@ MENU = """
 --- Audio Diagnostics (ESP32-P4 / ES8311) ---
  1) Full report        4) Beep
  2) Codec presence/ID  5) Phone ring
- 3) Play tone (freq,s)  0) Exit
+ 3) Play tone (freq,s)  6) Play a song
+                        0) Exit
 Choose: """
 
 
@@ -252,6 +341,10 @@ def main(a=None):
         elif choice == "5":
             n = input("rings [4]: ").strip()
             netutils.run_action(lambda: a.ring(int(n) if n else 4))
+        elif choice == "6":
+            name = input("song {} [ode]: ".format(
+                tuple(sorted(SONGS)))).strip() or "ode"
+            netutils.run_action(lambda: a.song(name))
         elif choice == "0":
             return a
         else:
