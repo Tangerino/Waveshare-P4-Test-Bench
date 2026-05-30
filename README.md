@@ -325,8 +325,10 @@ q = QuectelModem(); q.power_on(); q.wait_network()
 q.mqtt_publish_once('broker.host', 1883, 'p4-meter', 'meters/p4', '{"kwh":123}')
 ```
 
-- **RS485** needs a 3.3 V transceiver (MAX3485/THVD1450, or isolated ADM2587E);
-  DE/RE → one GPIO; the driver handles direction timing.
+- **RS485** uses an **auto-direction** transceiver (MAX13487E, or an isolated
+  auto module) — **no DE/RE GPIO**. The Modbus driver is echo-tolerant (skips
+  the TX echo by CRC-matching the response). Manual DE parts still work via
+  `Modbus(..., de=<gpio>)`.
 - **RS232** here is TTL 3.3 V (RX/TX/GND/VCC) → wires straight to a UART.
 - **Modem** needs its **own 3.4–4.2 V supply** (2 A bursts), a **1.8 V level
   shifter** on the UART, and a PWRKEY pulse — details in `docs/SERIAL.md`.

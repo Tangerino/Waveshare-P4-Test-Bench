@@ -15,35 +15,39 @@ top of each `*/diag.py`.
 
 | Port | UART | TX | RX | Ctrl | Driver constants |
 |------|-----:|---:|---:|------|------------------|
-| RS485 #1 | 1 | 20 | 21 | DE=22 | `rs485/diag.py` `PORTS[1]` |
-| RS485 #2 | 2 | 23 | 24 | DE=25 | `rs485/diag.py` `PORTS[2]` |
+| RS485 #1 | 1 | 20 | 21 | — (auto-direction) | `rs485/diag.py` `PORTS[1]` |
+| RS485 #2 | 2 | 23 | 24 | — (auto-direction) | `rs485/diag.py` `PORTS[2]` |
 | RS232/TTL | 3 | 32 | 33 | — | `rs232/diag.py` |
 | Modem | 4 | 36 | 37 | PWRKEY=38, PWR_EN=45 | `modem/diag.py` |
 
-Budget: 8 UART + 2 DE + ~2 modem-control ≈ 12 GPIOs. Use the repo's `gpio`
-test to confirm a candidate pin toggles freely before committing to it.
+Budget: 8 UART + ~2 modem-control ≈ **10 GPIOs** (no DE pins — auto-direction
+transceivers). Use the repo's `gpio` test to confirm a candidate pin toggles
+freely before committing to it.
 
-## RS485 ×2 (Modbus-RTU meters)
+## RS485 ×2 (Modbus-RTU meters) — auto-direction (DE-free)
 
-Use a **3.3 V** transceiver (MAX3485 / SP3485 / **THVD1450**). For meters in an
-electrical panel, prefer an **isolated** transceiver (**ADM2587E**) to avoid
-ground loops and survive surges.
+Use an **auto-direction** 3.3 V transceiver so there's **no DE/RE GPIO** — the
+chip senses the UART TX and drives the bus automatically. Good options:
+**MAX13487E** (auto-direction, single chip), or an **isolated** auto module
+(recommended for meters in a panel — avoids ground loops, survives surges).
 
 ```
-ESP32-P4              RS485 xcvr (3.3 V)         twisted pair → meter
+ESP32-P4              RS485 xcvr (auto-dir, 3.3 V)   twisted pair → meter
 UART1 TX (20) ───────► DI
-UART1 RX (21) ◄─────── RO
-GPIO DE  (22) ──┬────► DE
-                └────► /RE          A ───────────────► A / D+
-3V3 ──────────────────► VCC         B ───────────────► B / D-
+UART1 RX (21) ◄─────── RO          A ───────────────► A / D+
+3V3 ──────────────────► VCC        B ───────────────► B / D-
 GND ──────────────────► GND
         120 Ω across A–B at EACH bus end (not in the middle)
         one bias network per bus: ~680 Ω A→3V3 and ~680 Ω B→GND
         add TVS (e.g. SM712) across A/B for field wiring
 ```
-DE+/RE tie to one GPIO: **high = transmit, low = receive**. The driver raises
-DE, writes, waits for the bytes to shift out, then drops DE. Repeat the whole
-block for RS485 #2 on UART2 / pins 23,24,25.
+No direction pin to wire or time — repeat for RS485 #2 on UART2 / pins 23,24.
+
+**Echo note:** many auto-direction parts keep RX enabled during TX, so you read
+back your own transmitted bytes. The `Modbus` driver is **echo-tolerant** — it
+scans the received bytes for the valid response frame (slave addr + func + CRC)
+and skips the echo. (If you ever use a manual DE/RE transceiver instead, pass
+`de=<gpio>` to `Modbus(...)` and the driver will toggle it.)
 
 Meter wiring: all meters share one A/B pair (daisy-chain), each with a unique
 Modbus slave address. Match **baud + parity** to the meter (often 9600 8N1).
@@ -117,7 +121,8 @@ One-shot tests: `./deploy.sh --rs485 | --rs232 | --modem`, or the menu
 
 ## Bill of materials (typical)
 
-- 2× RS485 transceiver: THVD1450 / MAX3485 / SP3485 (or **ADM2587E** isolated)
+- 2× **auto-direction** RS485 transceiver: **MAX13487E** (or an isolated
+  auto-direction RS485 module — recommended for meters in a panel)
 - 4× 120 Ω termination + bias resistors; TVS diodes (SM712) for RS485 field lines
 - 1× MAX3232 + 5×0.1 µF — **only** if a real ±12 V RS232 device is attached
 - Quectel EC200U/EG915U module + SIM holder + LTE antenna
