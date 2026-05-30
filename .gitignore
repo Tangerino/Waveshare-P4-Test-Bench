@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 *.mpy
 
+# Firmware images / flash backups (don't commit binaries)
+*.bin
+
 # Editors / IDEs
 .idea/
 .vscode/
