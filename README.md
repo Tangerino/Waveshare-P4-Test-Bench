@@ -223,8 +223,14 @@ a = AudioDiagnostics()
 a.probe()                       # confirm ES8311 chip ID (0x83 0x11) over I2C
 a.tone(440, 2)                  # 440 Hz sine, 2 s (default vol 90, amp 28000)
 a.tone(440, 2, volume=100, amp=32000)   # max level
+a.ring(4)                       # telephone ring: NA ringback 440+480 Hz
+a.ring(2, off_ms=4000)          # true cadence (2 s on / 4 s off)
 a.beep()                        # short 1 kHz beep
 ```
+
+`ring()` plays the North American ringback (dual-tone 440+480 Hz) with a
+configurable on/off cadence (default 2 s on / 2 s off so a test is quick; pass
+`off_ms=4000` for the real cadence).
 
 Two software gain stages: `amp` (digital sine amplitude, 0–32767 — a pure sine
 won't clip at full scale) and `volume` (ES8311 DAC register `0x32`, 0–100%).

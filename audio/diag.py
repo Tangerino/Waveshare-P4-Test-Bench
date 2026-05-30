@@ -20,6 +20,7 @@
 #   a = AudioDiagnostics()
 #   a.probe()              # confirm ES8311 chip ID over I2C
 #   a.tone(440, 2)         # play a 440 Hz tone for 2 s out the speaker
+#   a.ring(4)              # telephone ring (NA ringback 440+480 Hz, cadence)
 #   a.report(); main()
 
 import array
@@ -102,43 +103,100 @@ class AudioDiagnostics:
             buf[i] = int(amp * math.sin(step * i))
         return buf
 
-    def tone(self, freq=440, secs=2, rate=16000, volume=90, amp=28000,
-             show=True):
-        """Configure the ES8311 + I2S and play a sine tone on the speaker."""
-        Pin = machine.Pin
-        if show:
-            print("  Tone {} Hz for {} s (vol {}%)...".format(freq, secs, volume))
+    @staticmethod
+    def _dual(f1, f2, rate, n, amp):
+        # n samples summing two sines (each at amp; sum peaks at 2*amp).
+        buf = array.array("h", bytearray(2 * n))
+        s1 = 2.0 * math.pi * f1 / rate
+        s2 = 2.0 * math.pi * f2 / rate
+        for i in range(n):
+            buf[i] = int(amp * (math.sin(s1 * i) + math.sin(s2 * i)))
+        return buf
 
+    def _open(self, rate, volume):
+        """Bring up MCLK (PWM) + ES8311 + I2S + amp. Returns a handle tuple."""
+        Pin = machine.Pin
         mclk = machine.PWM(Pin(PIN_MCLK), freq=rate * 256, duty_u16=32768)
         i2c = self._bus()
         for reg, val in ES8311_INIT:
             i2c.writeto_mem(CODEC_ADDR, reg, bytes([val]))
             time.sleep_ms(2)
         i2c.writeto_mem(CODEC_ADDR, 0x32, bytes([int(255 * volume / 100)]))
-
         audio = machine.I2S(
             I2S_ID, sck=Pin(PIN_BCLK), ws=Pin(PIN_WS), sd=Pin(PIN_DOUT),
             mode=machine.I2S.TX, bits=16, format=machine.I2S.MONO,
             rate=rate, ibuf=8192)
         pa = Pin(PIN_PA, Pin.OUT)
-        pa.value(1)  # enable the speaker amplifier
+        pa.value(1)  # enable the NS4150B speaker amplifier
+        return mclk, i2c, audio, pa
+
+    def _close(self, handle):
+        mclk, i2c, audio, pa = handle
+        try:
+            pa.value(0)
+        except Exception:
+            pass
+        try:
+            audio.deinit()
+        except Exception:
+            pass
+        for reg, val in ES8311_DEINIT:
+            try:
+                i2c.writeto_mem(CODEC_ADDR, reg, bytes([val]))
+            except OSError:
+                pass
+            time.sleep_ms(2)
+        try:
+            mclk.deinit()
+        except Exception:
+            pass
+
+    def tone(self, freq=440, secs=2, rate=16000, volume=90, amp=28000,
+             show=True):
+        """Configure the ES8311 + I2S and play a sine tone on the speaker."""
+        if show:
+            print("  Tone {} Hz for {} s (vol {}%)...".format(freq, secs, volume))
+        h = self._open(rate, volume)
         buf = self._sine(freq, rate, amp)
         try:
             for _ in range(max(1, int(secs))):
-                audio.write(buf)
+                h[2].write(buf)
         finally:
-            pa.value(0)
-            audio.deinit()
-            for reg, val in ES8311_DEINIT:
-                try:
-                    i2c.writeto_mem(CODEC_ADDR, reg, bytes([val]))
-                except OSError:
-                    pass
-                time.sleep_ms(2)
-            mclk.deinit()
+            self._close(h)
         if show:
             print("  done.")
         return {"freq": freq, "secs": secs}
+
+    def ring(self, rings=4, on_ms=2000, off_ms=2000, f1=440, f2=480,
+             rate=16000, volume=90, amp=14000, show=True):
+        """Telephone ring: North American ringback (440+480 Hz), cadence
+        on_ms ON / off_ms OFF, repeated `rings` times.
+
+        Defaults to the real cadence (2 s on / 4 s off is the standard; we use
+        2/2 so a test isn't too long). Pass off_ms=4000 for the true cadence.
+        """
+        if show:
+            print("  Phone ring x{}: {}+{} Hz, {}ms on / {}ms off...".format(
+                rings, f1, f2, on_ms, off_ms))
+        chunk = rate // 10                      # 100 ms blocks
+        on = self._dual(f1, f2, rate, chunk, amp)
+        silence = array.array("h", bytearray(2 * chunk))
+        n_on = max(1, on_ms // 100)
+        n_off = max(0, off_ms // 100)
+        h = self._open(rate, volume)
+        try:
+            for r in range(rings):
+                if show:
+                    print("    ring {}/{}".format(r + 1, rings))
+                for _ in range(n_on):
+                    h[2].write(on)
+                for _ in range(n_off):
+                    h[2].write(silence)
+        finally:
+            self._close(h)
+        if show:
+            print("  done.")
+        return {"rings": rings}
 
     def beep(self, show=True):
         """Short confirmation beep (1 kHz, ~1 s)."""
@@ -164,9 +222,9 @@ class AudioDiagnostics:
 
 MENU = """
 --- Audio Diagnostics (ESP32-P4 / ES8311) ---
- 1) Full report        3) Play tone (freq, secs)
- 2) Codec presence/ID  4) Beep
- 0) Exit
+ 1) Full report        4) Beep
+ 2) Codec presence/ID  5) Phone ring
+ 3) Play tone (freq,s)  0) Exit
 Choose: """
 
 
@@ -191,6 +249,9 @@ def main(a=None):
                 lambda: a.tone(int(f) if f else 440, int(s) if s else 2))
         elif choice == "4":
             netutils.run_action(a.beep)
+        elif choice == "5":
+            n = input("rings [4]: ").strip()
+            netutils.run_action(lambda: a.ring(int(n) if n else 4))
         elif choice == "0":
             return a
         else:
