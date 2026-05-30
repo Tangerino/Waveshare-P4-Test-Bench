@@ -10,6 +10,8 @@
 #   ./deploy.sh --sd            # copy, then microSD mount + speed one-shot report
 #   ./deploy.sh --i2c           # copy, then I2C bus scan
 #   ./deploy.sh --sleep         # copy, then sleep info + light-sleep test
+#   ./deploy.sh --audio         # copy, then ES8311 probe + test tone
+#   ./deploy.sh --gpio          # copy, then GPIO test info (interactive for pins)
 #   PORT=/dev/tty.usbmodemXXX ./deploy.sh    # override the port
 #
 # Override the default port with the PORT env var, or edit it below.
@@ -19,7 +21,7 @@ set -euo pipefail
 PORT="${PORT:-/dev/tty.usbmodem5B610378241}"
 # Root files copied as-is, plus package directories copied recursively.
 FILES=(main.py netutils.py)
-PKGS=(wifi eth system sdcard i2c sleep)
+PKGS=(wifi eth system sdcard i2c sleep audio gpio)
 
 usage() {
     cat <<EOF
@@ -35,6 +37,8 @@ Options:
   --sd          Copy, then microSD mount + speed one-shot report.
   --i2c         Copy, then I2C bus scan.
   --sleep       Copy, then sleep info + light-sleep test (non-destructive).
+  --audio       Copy, then ES8311 codec probe + a test tone.
+  --gpio        Copy, then GPIO test summary (use the menu for live pins).
   --no-repl     Copy + reset, but don't open the REPL.
   -h, --help    Show this help and exit.
 
@@ -114,6 +118,16 @@ case "${1:-}" in
         echo ">> Sleep info + light-sleep test (non-destructive)"
         exec mpremote connect "$PORT" exec \
             "from sleep import SleepDiagnostics; SleepDiagnostics().report()"
+        ;;
+    --audio)
+        echo ">> ES8311 codec probe + test tone"
+        exec mpremote connect "$PORT" exec \
+            "from audio import AudioDiagnostics; AudioDiagnostics().report()"
+        ;;
+    --gpio)
+        echo ">> GPIO test summary (use the menu for live pin control)"
+        exec mpremote connect "$PORT" exec \
+            "from gpio import GPIODiagnostics; GPIODiagnostics().report()"
         ;;
     --no-repl)
         echo ">> Resetting board"

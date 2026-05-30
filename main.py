@@ -13,6 +13,8 @@ MENU = """
  4) microSD (SDMMC)
  5) I2C bus scan
  6) Sleep / wake
+ 7) Audio (ES8311 speaker)
+ 8) GPIO (blink/read any pin)
  0) Exit
 Choose: """
 
@@ -42,6 +44,12 @@ def select():
         elif choice == "6":
             import sleep
             sleep.main()
+        elif choice == "7":
+            import audio
+            audio.main()
+        elif choice == "8":
+            import gpio
+            gpio.main()
         elif choice == "0":
             return
         else:

@@ -13,6 +13,8 @@ peripheral lives in its own package; `main.py` is a top-level selector.
 - **IP101 Ethernet PHY** (RMII) — see the pin table below
 - **microSD** slot (SDIO 3.0), IO powered by the P4 **on-chip LDO channel 4**
 - **I2C** header (default SDA=GPIO7, SCL=GPIO8)
+- **ES8311** audio codec (I2C `0x18`) + **NS4150B** speaker amplifier (I2S)
+- No user-controllable LED (power indicator only) — the GPIO test targets any pin
 - For tests that need it: an Ethernet cable, a FAT-formatted microSD card, and
   an I2C device
 
@@ -59,8 +61,14 @@ p4/
 ├── i2c/               # I2C bus scan package
 │   ├── __init__.py    # re-exports I2CDiagnostics, main
 │   └── diag.py
-└── sleep/             # deep/light sleep + wake package
-    ├── __init__.py    # re-exports SleepDiagnostics, main, check_wake
+├── sleep/             # deep/light sleep + wake package
+│   ├── __init__.py    # re-exports SleepDiagnostics, main, check_wake
+│   └── diag.py
+├── audio/             # ES8311 codec / speaker package
+│   ├── __init__.py    # re-exports AudioDiagnostics, main
+│   └── diag.py
+└── gpio/              # generic GPIO blink/read package
+    ├── __init__.py    # re-exports GPIODiagnostics, main
     └── diag.py
 ```
 
@@ -77,6 +85,8 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 4 | microSD | `sdcard/` | SDMMC mount, capacity, R/W speed (needs ≥ v1.29 fw) | `--sd` |
 | 5 | I2C | `i2c/` | bus scan + device-name hints | `--i2c` |
 | 6 | Sleep | `sleep/` | light/deep sleep + wake detection (RTC memory) | `--sleep` |
+| 7 | Audio | `audio/` | ES8311 codec ID probe + I2S tone on the speaker | `--audio` |
+| 8 | GPIO | `gpio/` | drive/blink/read any pin (no onboard user LED) | `--gpio` |
 
 ## Deploy
 
@@ -90,6 +100,8 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --sd      # upload, then microSD mount + speed one-shot report
 ./deploy.sh --i2c     # upload, then I2C bus scan
 ./deploy.sh --sleep   # upload, then sleep info + light-sleep test
+./deploy.sh --audio   # upload, then ES8311 probe + a test tone
+./deploy.sh --gpio    # upload, then GPIO test summary
 ./deploy.sh --help    # all options
 ```
 
@@ -193,6 +205,44 @@ interval. The test stashes a marker in RTC memory before sleeping; on the next
 boot `main.py` calls `sleep.check_wake()`, which detects the marker, confirms
 `reset_cause == DEEPSLEEP_RESET`, and prints how long the board was out. Deep
 sleep is interactive-only (menu option 3, with a confirm) since it reboots.
+
+## Audio / speaker (ES8311 + NS4150B)
+
+The P4-NANO has an **ES8311** mono codec (I2C `0x18`) driving an **NS4150B**
+speaker amplifier. Pins (from Waveshare's `07_I2SCodec` example):
+
+| Signal | GPIO |
+|--------|------|
+| Codec I2C (SDA / SCL) | 7 / 8 |
+| Amp enable (NS4150B) | 53 |
+| I2S MCLK / BCLK / WS / DOUT / DIN | 13 / 12 / 10 / 9 / 11 |
+
+```python
+from audio import AudioDiagnostics
+a = AudioDiagnostics()
+a.probe()             # confirm ES8311 chip ID (0x83 0x11) over I2C
+a.tone(440, 2)        # play a 440 Hz sine for 2 s on the speaker
+a.beep()              # short 1 kHz beep
+```
+
+MicroPython's `machine.I2S` does **not** emit MCLK, so the codec clock is
+generated on GPIO13 with **PWM** (rate×256). The ES8311 register init table is
+adapted from the MIT-licensed
+[MicroPython ES8311 driver by raptor09010](https://github.com/raptor09010/Micropython-ES8311-Library).
+`probe()` is verified (`ES8311 OK`); `tone()` runs the full
+codec→I2S→amp path.
+
+## GPIO (generic blink / read)
+
+The P4-NANO has **no documented user LED** (only a power indicator), so this is
+a generic pin tool — wire an LED+resistor or a meter to any header pin.
+
+```python
+from gpio import GPIODiagnostics
+g = GPIODiagnostics()
+g.blink(2, count=10, period_ms=200)   # blink GPIO2
+g.high(2); g.low(2); g.read(2, pull="up")
+```
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 
