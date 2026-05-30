@@ -102,7 +102,7 @@ class AudioDiagnostics:
             buf[i] = int(amp * math.sin(step * i))
         return buf
 
-    def tone(self, freq=440, secs=2, rate=16000, volume=70, amp=8000,
+    def tone(self, freq=440, secs=2, rate=16000, volume=90, amp=28000,
              show=True):
         """Configure the ES8311 + I2S and play a sine tone on the speaker."""
         Pin = machine.Pin
@@ -141,8 +141,8 @@ class AudioDiagnostics:
         return {"freq": freq, "secs": secs}
 
     def beep(self, show=True):
-        """Short confirmation beep (1 kHz, ~0.3 s)."""
-        return self.tone(1000, 1, rate=16000, volume=60, show=show)
+        """Short confirmation beep (1 kHz, ~1 s)."""
+        return self.tone(1000, 1, rate=16000, volume=90, show=show)
 
     # -- report ----------------------------------------------------------
 

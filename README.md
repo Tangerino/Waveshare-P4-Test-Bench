@@ -220,10 +220,15 @@ speaker amplifier. Pins (from Waveshare's `07_I2SCodec` example):
 ```python
 from audio import AudioDiagnostics
 a = AudioDiagnostics()
-a.probe()             # confirm ES8311 chip ID (0x83 0x11) over I2C
-a.tone(440, 2)        # play a 440 Hz sine for 2 s on the speaker
-a.beep()              # short 1 kHz beep
+a.probe()                       # confirm ES8311 chip ID (0x83 0x11) over I2C
+a.tone(440, 2)                  # 440 Hz sine, 2 s (default vol 90, amp 28000)
+a.tone(440, 2, volume=100, amp=32000)   # max level
+a.beep()                        # short 1 kHz beep
 ```
+
+Two software gain stages: `amp` (digital sine amplitude, 0–32767 — a pure sine
+won't clip at full scale) and `volume` (ES8311 DAC register `0x32`, 0–100%).
+The NS4150B amplifier gain is fixed in hardware.
 
 MicroPython's `machine.I2S` does **not** emit MCLK, so the codec clock is
 generated on GPIO13 with **PWM** (rate×256). The ES8311 register init table is
