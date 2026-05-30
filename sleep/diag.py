@@ -2,7 +2,7 @@
 #
 # Sleep / wake diagnostics for the ESP32-P4.
 #
-# Target: MicroPython v1.28.0, Generic ESP32P4 module.
+# Target: MicroPython on ESP32-P4 (ESP32_GENERIC_P4-C6_WIFI); verified v1.29.0-preview.
 #
 # Light sleep resumes execution in place. Deep sleep REBOOTS the chip on wake,
 # so the test stashes a marker in RTC memory before sleeping; on the next boot

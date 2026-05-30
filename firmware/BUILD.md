@@ -1,4 +1,4 @@
-# Building MicroPython for the ESP32-P4 (with microSD / LDO support)
+# Firmware for the ESP32-P4 (with microSD / LDO support)
 
 The microSD test needs a MicroPython build whose `machine.SDCard` supports the
 ESP32-P4 `ldo` / `cmd` / `data` kwargs. That support landed in **master** in:
@@ -10,11 +10,50 @@ ESP32-P4 `ldo` / `cmd` / `data` kwargs. That support landed in **master** in:
 | 2026-04-02 | `dc44bdbac` | **`ldo=` kwarg (configurable LDO channel)** |
 
 The stock Waveshare `v1.28.0` image (built 2026-04-06) was snapshotted from
-source **before** `dc44bdbac`, so it lacks these. Build from master at/after
+source **before** `dc44bdbac`, so it lacks these. Use a build at/after
 `dc44bdbac` and the repo's SD test works unchanged (it already passes
 `slot=0, sck=43, cmd=44, data=(39,40,41,42), ldo=4`).
 
 ---
+
+## Quick path: flash a prebuilt image (recommended, ✅ tested)
+
+No build needed — download a recent **`ESP32_GENERIC_P4-C6_WIFI`** nightly (the
+`C6_WIFI` variant keeps the ESP32-C6 WiFi) from
+<https://micropython.org/download/ESP32_GENERIC_P4/> and flash it.
+
+> **Verified:** `ESP32_GENERIC_P4-C6_WIFI-20260529-v1.29.0-preview.337.g44a569b637.bin`
+> flashed cleanly and all six test areas pass, microSD included.
+
+```sh
+PORT=/dev/tty.usbmodem5B610378241        # your board's serial port
+FW=ESP32_GENERIC_P4-C6_WIFI-20260529-v1.29.0-preview.337.g44a569b637.bin
+
+# (optional) back up the current image first — 16 MB flash:
+esptool --chip esp32p4 --port $PORT read_flash 0x0 0x1000000 backup-stock.bin
+
+esptool --chip esp32p4 --port $PORT erase_flash
+esptool --chip esp32p4 --port $PORT --baud 460800 write_flash 0x2000 "$FW"
+```
+
+> ⚠️ **ESP32-P4 flashes at offset `0x2000`** (its bootloader lives there) — not
+> `0x0`/`0x1000` like other ESP32 chips. esptool **≥ v5** required.
+
+Flashing **erases the filesystem** (your uploaded test files + `secrets.py`).
+Re-deploy and test:
+
+```sh
+./deploy.sh            # re-upload the suite (+ secrets.py)
+./deploy.sh --sd       # microSD should now mount + benchmark
+```
+
+`*.bin` (firmware images and `backup-*.bin`) are gitignored.
+
+---
+
+## Alternative: build from source
+
+Only needed if you want a custom build or a non-`C6_WIFI` variant.
 
 ## Prerequisites
 

@@ -2,7 +2,8 @@
 #
 # microSD (SDMMC) diagnostics for the Waveshare ESP32-P4-NANO.
 #
-# Target: MicroPython v1.28.0, Generic ESP32P4 module.
+# Target: MicroPython on ESP32-P4 (ESP32_GENERIC_P4-C6_WIFI).
+# microSD verified on v1.29.0-preview; needs >= dc44bdbac (2026-04-02) for ldo.
 #
 # --- Config (matches Waveshare's ESP-IDF example, examples/esp-idf/06_sdmmc) -
 #   Native SDMMC slot 0 (SDIO 3.0): CLK=43 CMD=44 D0=39 D1=40 D2=41 D3=42

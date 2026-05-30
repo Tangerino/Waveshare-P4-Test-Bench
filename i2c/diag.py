@@ -2,7 +2,7 @@
 #
 # I2C bus scan for the Waveshare ESP32-P4-NANO.
 #
-# Target: MicroPython v1.28.0, Generic ESP32P4 module.
+# Target: MicroPython on ESP32-P4 (ESP32_GENERIC_P4-C6_WIFI); verified v1.29.0-preview.
 #
 # --- Default I2C pins (Waveshare ESP32-P4-NANO) -----------------------------
 #   SDA = GPIO7    SCL = GPIO8

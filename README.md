@@ -3,9 +3,38 @@
 Hardware test tooling for the **Waveshare ESP32-P4-NANO** board. Each
 peripheral lives in its own package; `main.py` is a top-level selector.
 
-- **Target:** MicroPython v1.28.0, Generic ESP32P4 module
-- **WiFi radio:** external ESP32-C6 (hosted RPC transport)
-- **Ethernet:** built-in P4 EMAC + IP101 PHY over RMII
+## Requirements
+
+### Hardware
+- **Waveshare ESP32-P4-NANO** (ESP32-P4, rev v1.3, dual-core RISC-V @ 400 MHz,
+  PSRAM, 16 MB flash)
+- **ESP32-C6** WiFi co-processor on-board, linked to the P4 over **SDIO**
+  (esp-hosted) — GPIO 18/19/14/15/16/17 (+54 reset)
+- **IP101 Ethernet PHY** (RMII) — see the pin table below
+- **microSD** slot (SDIO 3.0), IO powered by the P4 **on-chip LDO channel 4**
+- **I2C** header (default SDA=GPIO7, SCL=GPIO8)
+- For tests that need it: an Ethernet cable, a FAT-formatted microSD card, and
+  an I2C device
+
+### Software / firmware
+- **MicroPython for ESP32-P4**, `C6_WIFI` variant (includes the ESP32-C6
+  hosted-WiFi support).
+- **microSD requires ≥ `v1.29.0-preview` (2026-05-29)** — or any build from
+  MicroPython master ≥ commit `dc44bdbac` (2026-04-02), which added the P4
+  `machine.SDCard` `ldo`/`cmd`/`data` kwargs. Older builds (e.g. the stock
+  `v1.28.0`) can run every other test but **cannot drive the SD slot**.
+- **Verified on:** `MicroPython v1.29.0-preview.337.g44a569b637 (2026-05-29)`,
+  `ESP32_GENERIC_P4-C6_WIFI`, ESP32-P4 rev v1.3. microSD confirmed mounting +
+  benchmarking on this build; the other areas were exercised on-device during
+  development (WiFi, System, I2C) or are ready to run (Ethernet needs a cable,
+  Sleep's deep-sleep path reboots the board).
+
+### Host tooling
+- [`mpremote`](https://docs.micropython.org/en/latest/reference/mpremote.html)
+  (upload + run) and `esptool` ≥ v5 (only for flashing firmware).
+
+See [`firmware/BUILD.md`](firmware/BUILD.md) to flash the prebuilt image or
+build your own.
 
 ## Layout
 
@@ -37,6 +66,17 @@ p4/
 
 New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 `PKGS` in `deploy.sh` and a line to the selector in `main.py`.
+
+## Tests
+
+| # | Test | Package | Checks | One-shot |
+|---|------|---------|--------|----------|
+| 1 | WiFi | `wifi/` | scan, connect, link/RSSI, monitor, ping, power, speedtest | `--wifi` |
+| 2 | Ethernet | `eth/` | IP101 link + DHCP, connectivity, ping, speedtest | `--eth` |
+| 3 | System | `system/` | CPU bench, heap/PSRAM, flash R/W, uptime, reset cause | `--system` |
+| 4 | microSD | `sdcard/` | SDMMC mount, capacity, R/W speed (needs ≥ v1.29 fw) | `--sd` |
+| 5 | I2C | `i2c/` | bus scan + device-name hints | `--i2c` |
+| 6 | Sleep | `sleep/` | light/deep sleep + wake detection (RTC memory) | `--sleep` |
 
 ## Deploy
 
@@ -92,7 +132,7 @@ sd.mount(); sd.info(); sd.speed(); sd.umount()
 The speed test writes/reads `/sd/_sdtest.bin` (default 512 KB) and removes it.
 Card must be inserted and FAT-formatted.
 
-### Correct config (per Waveshare's ESP-IDF example)
+### Config (native SDMMC slot 0 + on-chip LDO)
 
 Native SDMMC **slot 0** (SDIO 3.0), CLK=43 CMD=44 D0-3=39-42, and — crucially —
 the SD card IO is powered by the P4's **on-chip LDO channel 4**. MicroPython's
@@ -103,30 +143,25 @@ machine.SDCard(slot=0, width=4, sck=Pin(43), cmd=Pin(44),
                data=(Pin(39), Pin(40), Pin(41), Pin(42)), ldo=4)
 ```
 
-> **Firmware requirement:** the SD slot needs a MicroPython build whose
-> `machine.SDCard` supports the ESP32-P4 `ldo`/`cmd`/`data` kwargs (present in
-> current MicroPython — see the [docs](https://docs.micropython.org/en/latest/library/machine.SDCard.html)
-> and [issue #18984](https://github.com/micropython/micropython/issues/18984)).
->
-> The support landed in MicroPython master in three commits (March–April 2026):
-> - `a8ba8fab3` (2026-03-23) — SDMMC power control via internal LDO
-> - `e57e52218` (2026-03-27) — make default SDMMC slot configurable (slot 0)
-> - `dc44bdbac` (2026-04-02) — make the LDO channel configurable from Python (`ldo=`)
->
-> The **tested build** (`v1.28.0`, built `2026-04-06`, machine = "Generic
-> ESP32P4 module …") was snapshotted from source **before `dc44bdbac`**, so it
-> rejects `ldo`/`cmd`/`data` (`extra keyword arguments given`) and can't enable
-> the LDO → `ESP_ERR_TIMEOUT`. `mount()` detects this and says so.
->
-> **Fix:** flash MicroPython built from master at/after `dc44bdbac` (2026-04-02),
-> with ESP-IDF ≥ v5.4 (for `sd_pwr_ctrl_by_on_chip_ldo`). Then the SD test works
-> **unchanged**. Step-by-step build/flash instructions (and a note on keeping
-> ESP32-C6 WiFi) are in [`firmware/BUILD.md`](firmware/BUILD.md). The other test
-> areas (WiFi, Ethernet, System, I2C, Sleep) work on the current build.
-
-The pin/LDO values come from Waveshare's
+These values come from Waveshare's
 [`06_sdmmc` ESP-IDF example](https://github.com/waveshareteam/ESP32-P4-Platform/tree/main/examples/esp-idf/06_sdmmc)
 (`Kconfig.projbuild`: P4 CLK=43/CMD=44/D0-3=39-42, `SD_PWR_CTRL_LDO_IO_ID=4`).
+
+> ✅ **Verified working** on `v1.29.0-preview.337` (`C6_WIFI`): mounts on the
+> first config, e.g. a 256 MB card → `Capacity 255.7 MB`, write ≈ 67 KB/s, read
+> ≈ 1065 KB/s in 4-bit mode.
+>
+> ⚠️ **Firmware requirement.** The `ldo`/`cmd`/`data` kwargs (which power and
+> drive the slot) were added to MicroPython master in March–April 2026:
+> `a8ba8fab3` (LDO power ctrl), `e57e52218` (configurable slot), **`dc44bdbac`**
+> (2026-04-02, the `ldo=` kwarg). Builds older than that — e.g. the stock
+> `v1.28.0` — reject those kwargs (`extra keyword arguments given`), so the SD
+> slot gets no LDO power and times out (`ESP_ERR_TIMEOUT`). `sdcard/diag.py`
+> uses the correct config and **detects old firmware** with a clear message.
+> Flash ≥ `v1.29.0-preview` (see [`firmware/BUILD.md`](firmware/BUILD.md)) and
+> the SD test works **unchanged**.
+> Refs: [`machine.SDCard` docs](https://docs.micropython.org/en/latest/library/machine.SDCard.html),
+> [issue #18984](https://github.com/micropython/micropython/issues/18984).
 
 ## I2C bus scan
 
