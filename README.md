@@ -12,6 +12,7 @@ peripheral lives in its own package; `main.py` is a top-level selector.
 ```
 p4/
 ├── deploy.sh          # upload + run helper (mpremote wrapper)
+├── firmware/BUILD.md  # how to build a P4 image with microSD/LDO support
 ├── main.py            # boot entry point → hardware selector (WiFi / Ethernet)
 ├── netutils.py        # shared IP helpers: resolve, tcp_check, ping, run_action
 ├── wifi/              # WiFi diagnostics package
@@ -118,9 +119,10 @@ machine.SDCard(slot=0, width=4, sck=Pin(43), cmd=Pin(44),
 > the LDO → `ESP_ERR_TIMEOUT`. `mount()` detects this and says so.
 >
 > **Fix:** flash MicroPython built from master at/after `dc44bdbac` (2026-04-02),
-> with ESP-IDF ≥ v5.3 (for `sd_pwr_ctrl_by_on_chip_ldo`). Then the SD test works
-> **unchanged**. The other test areas (WiFi, Ethernet, System, I2C, Sleep) work
-> on the current build.
+> with ESP-IDF ≥ v5.4 (for `sd_pwr_ctrl_by_on_chip_ldo`). Then the SD test works
+> **unchanged**. Step-by-step build/flash instructions (and a note on keeping
+> ESP32-C6 WiFi) are in [`firmware/BUILD.md`](firmware/BUILD.md). The other test
+> areas (WiFi, Ethernet, System, I2C, Sleep) work on the current build.
 
 The pin/LDO values come from Waveshare's
 [`06_sdmmc` ESP-IDF example](https://github.com/waveshareteam/ESP32-P4-Platform/tree/main/examples/esp-idf/06_sdmmc)
