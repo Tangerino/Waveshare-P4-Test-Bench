@@ -26,39 +26,48 @@ def select():
         except (EOFError, KeyboardInterrupt):
             print()
             return
-        if choice == "1":
+        if choice == '1':
             import wifi
+
             wifi.main()
-        elif choice == "2":
+        elif choice == '2':
             import eth
+
             eth.main()
-        elif choice == "3":
+        elif choice == '3':
             import system
+
             system.main()
-        elif choice == "4":
+        elif choice == '4':
             import sdcard
+
             sdcard.main()
-        elif choice == "5":
+        elif choice == '5':
             import i2c
+
             i2c.main()
-        elif choice == "6":
+        elif choice == '6':
             import sleep
+
             sleep.main()
-        elif choice == "7":
+        elif choice == '7':
             import audio
+
             audio.main()
-        elif choice == "8":
+        elif choice == '8':
             import gpio
+
             gpio.main()
-        elif choice == "0":
+        elif choice == '0':
             return
         else:
-            print("?")
+            print('?')
 
 
 # If we just woke from a deep-sleep test, report it before showing the menu.
 try:
     import sleep
+
     sleep.check_wake()
 except Exception:
     pass

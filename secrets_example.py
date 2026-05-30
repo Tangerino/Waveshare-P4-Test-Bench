@@ -7,5 +7,5 @@
 # deploy.sh. If secrets.py is absent, WiFi defaults are blank and you must pass
 # credentials explicitly to connect().
 
-WIFI_SSID = "your-ssid"
-WIFI_PASSWORD = "your-password"
+WIFI_SSID = 'your-ssid'
+WIFI_PASSWORD = 'your-password'

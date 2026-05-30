@@ -34,7 +34,7 @@ import machine
 CODEC_ADDR = 0x18
 PIN_SDA = 7
 PIN_SCL = 8
-PIN_PA = 53            # NS4150B amplifier enable
+PIN_PA = 53  # NS4150B amplifier enable
 PIN_MCLK = 13
 PIN_BCLK = 12
 PIN_WS = 10
@@ -43,28 +43,80 @@ I2S_ID = 0
 
 # ES8311 register init for DAC playback (adapted from raptor09010's MIT driver).
 ES8311_INIT = (
-    (0x00, 0x80), (0x01, 0x3F), (0x02, 0x00), (0x03, 0x10), (0x04, 0x10),
-    (0x05, 0x00), (0x06, 0x03), (0x07, 0x00), (0x08, 0xFF), (0x09, 0x0C),
-    (0x0A, 0x4C), (0x0B, 0x00), (0x0C, 0x00), (0x0D, 0x01), (0x0E, 0x02),
-    (0x0F, 0x00), (0x10, 0x1F), (0x11, 0x7F), (0x12, 0x00), (0x13, 0x10),
-    (0x14, 0x1A), (0x15, 0x40), (0x16, 0x24), (0x17, 0xBF), (0x18, 0x00),
-    (0x19, 0x00), (0x1A, 0x00), (0x1B, 0x0A), (0x1C, 0x6A),
-    (0x32, 0x9F), (0x37, 0x08), (0x44, 0x50),
+    (0x00, 0x80),
+    (0x01, 0x3F),
+    (0x02, 0x00),
+    (0x03, 0x10),
+    (0x04, 0x10),
+    (0x05, 0x00),
+    (0x06, 0x03),
+    (0x07, 0x00),
+    (0x08, 0xFF),
+    (0x09, 0x0C),
+    (0x0A, 0x4C),
+    (0x0B, 0x00),
+    (0x0C, 0x00),
+    (0x0D, 0x01),
+    (0x0E, 0x02),
+    (0x0F, 0x00),
+    (0x10, 0x1F),
+    (0x11, 0x7F),
+    (0x12, 0x00),
+    (0x13, 0x10),
+    (0x14, 0x1A),
+    (0x15, 0x40),
+    (0x16, 0x24),
+    (0x17, 0xBF),
+    (0x18, 0x00),
+    (0x19, 0x00),
+    (0x1A, 0x00),
+    (0x1B, 0x0A),
+    (0x1C, 0x6A),
+    (0x32, 0x9F),
+    (0x37, 0x08),
+    (0x44, 0x50),
 )
 # Power-down sequence (avoids pops / I2C lockups).
 ES8311_DEINIT = (
-    (0x32, 0x00), (0x17, 0x00), (0x0E, 0x6A), (0x12, 0x02), (0x14, 0x10),
-    (0x0D, 0xFC), (0x15, 0x00), (0x37, 0x08), (0x00, 0x1F),
+    (0x32, 0x00),
+    (0x17, 0x00),
+    (0x0E, 0x6A),
+    (0x12, 0x02),
+    (0x14, 0x10),
+    (0x0D, 0xFC),
+    (0x15, 0x00),
+    (0x37, 0x08),
+    (0x00, 0x1F),
 )
 
 # Equal-tempered note frequencies (Hz, A4=440). "R" = rest.
 NOTES = {
-    "R": 0,
-    "C4": 262, "C#4": 277, "D4": 294, "D#4": 311, "E4": 330, "F4": 349,
-    "F#4": 370, "G4": 392, "G#4": 415, "A4": 440, "A#4": 466, "B4": 494,
-    "C5": 523, "C#5": 554, "D5": 587, "D#5": 622, "E5": 659, "F5": 698,
-    "F#5": 740, "G5": 784, "G#5": 831, "A5": 880, "A#5": 932, "B5": 988,
-    "C6": 1047,
+    'R': 0,
+    'C4': 262,
+    'C#4': 277,
+    'D4': 294,
+    'D#4': 311,
+    'E4': 330,
+    'F4': 349,
+    'F#4': 370,
+    'G4': 392,
+    'G#4': 415,
+    'A4': 440,
+    'A#4': 466,
+    'B4': 494,
+    'C5': 523,
+    'C#5': 554,
+    'D5': 587,
+    'D#5': 622,
+    'E5': 659,
+    'F5': 698,
+    'F#5': 740,
+    'G5': 784,
+    'G#5': 831,
+    'A5': 880,
+    'A#5': 932,
+    'B5': 988,
+    'C6': 1047,
 }
 
 _Q = 350  # quarter-note ms; _H = half, _E = eighth
@@ -72,44 +124,132 @@ _H, _E = _Q * 2, _Q // 2
 
 # Songs: list of (note, duration_ms). Public-domain melodies.
 SONGS = {
-    "ode": [  # Beethoven — Ode to Joy
-        ("E4", _Q), ("E4", _Q), ("F4", _Q), ("G4", _Q),
-        ("G4", _Q), ("F4", _Q), ("E4", _Q), ("D4", _Q),
-        ("C4", _Q), ("C4", _Q), ("D4", _Q), ("E4", _Q),
-        ("E4", _Q + _E), ("D4", _E), ("D4", _H),
+    'ode': [  # Beethoven — Ode to Joy
+        ('E4', _Q),
+        ('E4', _Q),
+        ('F4', _Q),
+        ('G4', _Q),
+        ('G4', _Q),
+        ('F4', _Q),
+        ('E4', _Q),
+        ('D4', _Q),
+        ('C4', _Q),
+        ('C4', _Q),
+        ('D4', _Q),
+        ('E4', _Q),
+        ('E4', _Q + _E),
+        ('D4', _E),
+        ('D4', _H),
     ],
-    "twinkle": [  # Twinkle Twinkle Little Star
-        ("C4", _Q), ("C4", _Q), ("G4", _Q), ("G4", _Q),
-        ("A4", _Q), ("A4", _Q), ("G4", _H),
-        ("F4", _Q), ("F4", _Q), ("E4", _Q), ("E4", _Q),
-        ("D4", _Q), ("D4", _Q), ("C4", _H),
-        ("G4", _Q), ("G4", _Q), ("F4", _Q), ("F4", _Q),
-        ("E4", _Q), ("E4", _Q), ("D4", _H),
-        ("G4", _Q), ("G4", _Q), ("F4", _Q), ("F4", _Q),
-        ("E4", _Q), ("E4", _Q), ("D4", _H),
-        ("C4", _Q), ("C4", _Q), ("G4", _Q), ("G4", _Q),
-        ("A4", _Q), ("A4", _Q), ("G4", _H),
-        ("F4", _Q), ("F4", _Q), ("E4", _Q), ("E4", _Q),
-        ("D4", _Q), ("D4", _Q), ("C4", _H),
+    'twinkle': [  # Twinkle Twinkle Little Star
+        ('C4', _Q),
+        ('C4', _Q),
+        ('G4', _Q),
+        ('G4', _Q),
+        ('A4', _Q),
+        ('A4', _Q),
+        ('G4', _H),
+        ('F4', _Q),
+        ('F4', _Q),
+        ('E4', _Q),
+        ('E4', _Q),
+        ('D4', _Q),
+        ('D4', _Q),
+        ('C4', _H),
+        ('G4', _Q),
+        ('G4', _Q),
+        ('F4', _Q),
+        ('F4', _Q),
+        ('E4', _Q),
+        ('E4', _Q),
+        ('D4', _H),
+        ('G4', _Q),
+        ('G4', _Q),
+        ('F4', _Q),
+        ('F4', _Q),
+        ('E4', _Q),
+        ('E4', _Q),
+        ('D4', _H),
+        ('C4', _Q),
+        ('C4', _Q),
+        ('G4', _Q),
+        ('G4', _Q),
+        ('A4', _Q),
+        ('A4', _Q),
+        ('G4', _H),
+        ('F4', _Q),
+        ('F4', _Q),
+        ('E4', _Q),
+        ('E4', _Q),
+        ('D4', _Q),
+        ('D4', _Q),
+        ('C4', _H),
     ],
-    "scale": [(n, 200) for n in
-              ("C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5")],
-    "birthday": [  # Happy Birthday to You (key of C)
-        ("C4", _E), ("C4", _E), ("D4", _Q), ("C4", _Q), ("F4", _Q), ("E4", _H),
-        ("C4", _E), ("C4", _E), ("D4", _Q), ("C4", _Q), ("G4", _Q), ("F4", _H),
-        ("C4", _E), ("C4", _E), ("C5", _Q), ("A4", _Q),
-        ("F4", _Q), ("E4", _Q), ("D4", _H),
-        ("A#4", _E), ("A#4", _E), ("A4", _Q), ("F4", _Q), ("G4", _Q), ("F4", _H),
+    'scale': [(n, 200) for n in ('C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5')],
+    'birthday': [  # Happy Birthday to You (key of C)
+        ('C4', _E),
+        ('C4', _E),
+        ('D4', _Q),
+        ('C4', _Q),
+        ('F4', _Q),
+        ('E4', _H),
+        ('C4', _E),
+        ('C4', _E),
+        ('D4', _Q),
+        ('C4', _Q),
+        ('G4', _Q),
+        ('F4', _H),
+        ('C4', _E),
+        ('C4', _E),
+        ('C5', _Q),
+        ('A4', _Q),
+        ('F4', _Q),
+        ('E4', _Q),
+        ('D4', _H),
+        ('A#4', _E),
+        ('A#4', _E),
+        ('A4', _Q),
+        ('F4', _Q),
+        ('G4', _Q),
+        ('F4', _H),
     ],
-    "mario": [  # Super Mario Bros — opening theme (R = rest)
-        ("E5", 120), ("R", 40), ("E5", 120), ("R", 120), ("E5", 120), ("R", 120),
-        ("C5", 120), ("E5", 120), ("R", 40), ("G5", 150), ("R", 300),
-        ("G4", 150), ("R", 300),
-        ("C5", 200), ("R", 100), ("G4", 150), ("R", 100), ("E4", 150), ("R", 100),
-        ("A4", 150), ("B4", 150), ("A#4", 120), ("A4", 150),
-        ("G4", 100), ("E5", 100), ("G5", 120), ("A5", 150), ("R", 60),
-        ("F5", 100), ("G5", 120), ("R", 60), ("E5", 150), ("R", 60),
-        ("C5", 100), ("D5", 100), ("B4", 200),
+    'mario': [  # Super Mario Bros — opening theme (R = rest)
+        ('E5', 120),
+        ('R', 40),
+        ('E5', 120),
+        ('R', 120),
+        ('E5', 120),
+        ('R', 120),
+        ('C5', 120),
+        ('E5', 120),
+        ('R', 40),
+        ('G5', 150),
+        ('R', 300),
+        ('G4', 150),
+        ('R', 300),
+        ('C5', 200),
+        ('R', 100),
+        ('G4', 150),
+        ('R', 100),
+        ('E4', 150),
+        ('R', 100),
+        ('A4', 150),
+        ('B4', 150),
+        ('A#4', 120),
+        ('A4', 150),
+        ('G4', 100),
+        ('E5', 100),
+        ('G5', 120),
+        ('A5', 150),
+        ('R', 60),
+        ('F5', 100),
+        ('G5', 120),
+        ('R', 60),
+        ('E5', 150),
+        ('R', 60),
+        ('C5', 100),
+        ('D5', 100),
+        ('B4', 200),
     ],
 }
 
@@ -121,7 +261,8 @@ class AudioDiagnostics:
     def _bus(self):
         if self.i2c is None:
             self.i2c = machine.I2C(
-                0, scl=machine.Pin(PIN_SCL), sda=machine.Pin(PIN_SDA), freq=400000)
+                0, scl=machine.Pin(PIN_SCL), sda=machine.Pin(PIN_SDA), freq=400000
+            )
         return self.i2c
 
     # -- presence / id ---------------------------------------------------
@@ -129,24 +270,33 @@ class AudioDiagnostics:
     def probe(self, show=True):
         """Read the ES8311 chip-ID registers (0xFD=0x83, 0xFE=0x11)."""
         i2c = self._bus()
-        info = {"present": CODEC_ADDR in i2c.scan()}
+        info = {'present': CODEC_ADDR in i2c.scan()}
         try:
             id1 = i2c.readfrom_mem(CODEC_ADDR, 0xFD, 1)[0]
             id2 = i2c.readfrom_mem(CODEC_ADDR, 0xFE, 1)[0]
             ver = i2c.readfrom_mem(CODEC_ADDR, 0xFF, 1)[0]
-            info.update(id1=id1, id2=id2, version=ver,
-                        is_es8311=(id1 == 0x83 and id2 == 0x11))
+            info.update(
+                id1=id1, id2=id2, version=ver, is_es8311=(id1 == 0x83 and id2 == 0x11)
+            )
         except OSError as e:
-            info["error"] = str(e)
+            info['error'] = str(e)
         if show:
-            print("  Codec @0x{:02X}: {}".format(
-                CODEC_ADDR, "present" if info["present"] else "NOT FOUND"))
-            if "id1" in info:
-                print("  Chip ID    : 0x{:02X} 0x{:02X} (ver 0x{:02X}) -> {}".format(
-                    info["id1"], info["id2"], info["version"],
-                    "ES8311 OK" if info["is_es8311"] else "unexpected"))
-            elif "error" in info:
-                print("  ID read failed: {}".format(info["error"]))
+            print(
+                '  Codec @0x{:02X}: {}'.format(
+                    CODEC_ADDR, 'present' if info['present'] else 'NOT FOUND'
+                )
+            )
+            if 'id1' in info:
+                print(
+                    '  Chip ID    : 0x{:02X} 0x{:02X} (ver 0x{:02X}) -> {}'.format(
+                        info['id1'],
+                        info['id2'],
+                        info['version'],
+                        'ES8311 OK' if info['is_es8311'] else 'unexpected',
+                    )
+                )
+            elif 'error' in info:
+                print('  ID read failed: {}'.format(info['error']))
         return info
 
     # -- tone playback ---------------------------------------------------
@@ -155,7 +305,7 @@ class AudioDiagnostics:
     def _sine(freq, rate, amp):
         # One second of samples => integer cycles for integer freq => loops
         # seamlessly. 16-bit signed mono.
-        buf = array.array("h", bytearray(2 * rate))
+        buf = array.array('h', bytearray(2 * rate))
         step = 2.0 * math.pi * freq / rate
         for i in range(rate):
             buf[i] = int(amp * math.sin(step * i))
@@ -164,7 +314,7 @@ class AudioDiagnostics:
     @staticmethod
     def _dual(f1, f2, rate, n, amp):
         # n samples summing two sines (each at amp; sum peaks at 2*amp).
-        buf = array.array("h", bytearray(2 * n))
+        buf = array.array('h', bytearray(2 * n))
         s1 = 2.0 * math.pi * f1 / rate
         s2 = 2.0 * math.pi * f2 / rate
         for i in range(n):
@@ -181,9 +331,16 @@ class AudioDiagnostics:
             time.sleep_ms(2)
         i2c.writeto_mem(CODEC_ADDR, 0x32, bytes([int(255 * volume / 100)]))
         audio = machine.I2S(
-            I2S_ID, sck=Pin(PIN_BCLK), ws=Pin(PIN_WS), sd=Pin(PIN_DOUT),
-            mode=machine.I2S.TX, bits=16, format=machine.I2S.MONO,
-            rate=rate, ibuf=8192)
+            I2S_ID,
+            sck=Pin(PIN_BCLK),
+            ws=Pin(PIN_WS),
+            sd=Pin(PIN_DOUT),
+            mode=machine.I2S.TX,
+            bits=16,
+            format=machine.I2S.MONO,
+            rate=rate,
+            ibuf=8192,
+        )
         pa = Pin(PIN_PA, Pin.OUT)
         pa.value(1)  # enable the NS4150B speaker amplifier
         return mclk, i2c, audio, pa
@@ -209,11 +366,10 @@ class AudioDiagnostics:
         except Exception:
             pass
 
-    def tone(self, freq=440, secs=2, rate=16000, volume=90, amp=28000,
-             show=True):
+    def tone(self, freq=440, secs=2, rate=16000, volume=90, amp=28000, show=True):
         """Configure the ES8311 + I2S and play a sine tone on the speaker."""
         if show:
-            print("  Tone {} Hz for {} s (vol {}%)...".format(freq, secs, volume))
+            print('  Tone {} Hz for {} s (vol {}%)...'.format(freq, secs, volume))
         h = self._open(rate, volume)
         buf = self._sine(freq, rate, amp)
         try:
@@ -222,11 +378,21 @@ class AudioDiagnostics:
         finally:
             self._close(h)
         if show:
-            print("  done.")
-        return {"freq": freq, "secs": secs}
+            print('  done.')
+        return {'freq': freq, 'secs': secs}
 
-    def ring(self, rings=4, on_ms=2000, off_ms=2000, f1=440, f2=480,
-             rate=16000, volume=90, amp=14000, show=True):
+    def ring(
+        self,
+        rings=4,
+        on_ms=2000,
+        off_ms=2000,
+        f1=440,
+        f2=480,
+        rate=16000,
+        volume=90,
+        amp=14000,
+        show=True,
+    ):
         """Telephone ring: North American ringback (440+480 Hz), cadence
         on_ms ON / off_ms OFF, repeated `rings` times.
 
@@ -234,18 +400,21 @@ class AudioDiagnostics:
         2/2 so a test isn't too long). Pass off_ms=4000 for the true cadence.
         """
         if show:
-            print("  Phone ring x{}: {}+{} Hz, {}ms on / {}ms off...".format(
-                rings, f1, f2, on_ms, off_ms))
-        chunk = rate // 10                      # 100 ms blocks
+            print(
+                '  Phone ring x{}: {}+{} Hz, {}ms on / {}ms off...'.format(
+                    rings, f1, f2, on_ms, off_ms
+                )
+            )
+        chunk = rate // 10  # 100 ms blocks
         on = self._dual(f1, f2, rate, chunk, amp)
-        silence = array.array("h", bytearray(2 * chunk))
+        silence = array.array('h', bytearray(2 * chunk))
         n_on = max(1, on_ms // 100)
         n_off = max(0, off_ms // 100)
         h = self._open(rate, volume)
         try:
             for r in range(rings):
                 if show:
-                    print("    ring {}/{}".format(r + 1, rings))
+                    print('    ring {}/{}'.format(r + 1, rings))
                 for _ in range(n_on):
                     h[2].write(on)
                 for _ in range(n_off):
@@ -253,8 +422,8 @@ class AudioDiagnostics:
         finally:
             self._close(h)
         if show:
-            print("  done.")
-        return {"rings": rings}
+            print('  done.')
+        return {'rings': rings}
 
     def beep(self, show=True):
         """Short confirmation beep (1 kHz, ~1 s)."""
@@ -266,7 +435,7 @@ class AudioDiagnostics:
     def _note_buf(freq, rate, ms, amp):
         """One note as 16-bit samples, with ~5 ms fade in/out (anti-click)."""
         n = max(1, rate * ms // 1000)
-        buf = array.array("h", bytearray(2 * n))
+        buf = array.array('h', bytearray(2 * n))
         if freq <= 0:  # rest
             return buf
         step = 2.0 * math.pi * freq / rate
@@ -280,8 +449,7 @@ class AudioDiagnostics:
             buf[i] = int(v)
         return buf
 
-    def melody(self, seq, rate=16000, volume=90, amp=26000, gap_ms=20,
-               show=True):
+    def melody(self, seq, rate=16000, volume=90, amp=26000, gap_ms=20, show=True):
         """Play a sequence of (note, duration_ms). note is a NOTES key or Hz."""
         h = self._open(rate, volume)
         try:
@@ -292,47 +460,50 @@ class AudioDiagnostics:
                     h[2].write(self._note_buf(0, rate, gap_ms, amp))
         finally:
             self._close(h)
-        return {"notes": len(seq)}
+        return {'notes': len(seq)}
 
     @staticmethod
     def song_names():
         """Sorted list of built-in song names (stable index for selection)."""
         return sorted(SONGS)
 
-    def song(self, name="ode", show=True):
+    def song(self, name='ode', show=True):
         """Play a built-in song by name ("ode") or 1-based number (1)."""
         if isinstance(name, int):
             names = self.song_names()
             if not (1 <= name <= len(names)):
-                print("  invalid song number {} (1..{})".format(name, len(names)))
+                print('  invalid song number {} (1..{})'.format(name, len(names)))
                 return None
             name = names[name - 1]
         seq = SONGS.get(name)
         if not seq:
-            print("  unknown song '{}'. Available: {}".format(
-                name, ", ".join(self.song_names())))
+            print(
+                "  unknown song '{}'. Available: {}".format(
+                    name, ', '.join(self.song_names())
+                )
+            )
             return None
         if show:
             print("  Playing '{}' ({} notes)...".format(name, len(seq)))
         self.melody(seq, show=False)
         if show:
-            print("  done.")
-        return {"song": name}
+            print('  done.')
+        return {'song': name}
 
     # -- report ----------------------------------------------------------
 
     def report(self):
-        print("=" * 78)
-        print("Audio Diagnostics — ESP32-P4-NANO (ES8311 + NS4150B)")
-        print("=" * 78)
-        print("Codec presence:")
+        print('=' * 78)
+        print('Audio Diagnostics — ESP32-P4-NANO (ES8311 + NS4150B)')
+        print('=' * 78)
+        print('Codec presence:')
         info = self.probe(show=True)
-        if info.get("present"):
-            print("\nPlaying test tone (440 Hz, 2 s):")
+        if info.get('present'):
+            print('\nPlaying test tone (440 Hz, 2 s):')
             self.tone(440, 2, show=True)
         else:
-            print("\nCodec not detected on I2C — skipping tone.")
-        print("=" * 78)
+            print('\nCodec not detected on I2C — skipping tone.')
+        print('=' * 78)
 
 
 # -- interactive menu ----------------------------------------------------
@@ -348,6 +519,7 @@ Choose: """
 
 def main(a=None):
     import netutils
+
     a = a or AudioDiagnostics()
     while True:
         try:
@@ -355,29 +527,30 @@ def main(a=None):
         except (EOFError, KeyboardInterrupt):
             print()
             return a
-        print("> option {}".format(choice))
-        if choice == "1":
+        print('> option {}'.format(choice))
+        if choice == '1':
             netutils.run_action(a.report)
-        elif choice == "2":
+        elif choice == '2':
             netutils.run_action(a.probe)
-        elif choice == "3":
-            f = input("freq Hz [440]: ").strip()
-            s = input("seconds [2]: ").strip()
+        elif choice == '3':
+            f = input('freq Hz [440]: ').strip()
+            s = input('seconds [2]: ').strip()
             netutils.run_action(
-                lambda: a.tone(int(f) if f else 440, int(s) if s else 2))
-        elif choice == "4":
+                lambda: a.tone(int(f) if f else 440, int(s) if s else 2)
+            )
+        elif choice == '4':
             netutils.run_action(a.beep)
-        elif choice == "5":
-            n = input("rings [4]: ").strip()
+        elif choice == '5':
+            n = input('rings [4]: ').strip()
             netutils.run_action(lambda: a.ring(int(n) if n else 4))
-        elif choice == "6":
+        elif choice == '6':
             names = a.song_names()
             for i, nm in enumerate(names, 1):
-                print("    {}) {}".format(i, nm))
-            sel = input("song number [1]: ").strip()
+                print('    {}) {}'.format(i, nm))
+            sel = input('song number [1]: ').strip()
             num = int(sel) if sel else 1
             netutils.run_action(lambda: a.song(num))
-        elif choice == "0":
+        elif choice == '0':
             return a
         else:
-            print("?")
+            print('?')

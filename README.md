@@ -34,6 +34,8 @@ peripheral lives in its own package; `main.py` is a top-level selector.
 ### Host tooling
 - [`mpremote`](https://docs.micropython.org/en/latest/reference/mpremote.html)
   (upload + run) and `esptool` ≥ v5 (only for flashing firmware).
+- [`ruff`](https://docs.astral.sh/ruff/) for formatting/linting (`ruff format .`,
+  `ruff check .`) — config in `ruff.toml` (single-quote strings).
 
 See [`firmware/BUILD.md`](firmware/BUILD.md) to flash the prebuilt image or
 build your own.

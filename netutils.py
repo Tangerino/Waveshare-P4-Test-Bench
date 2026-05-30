@@ -23,22 +23,22 @@ except ImportError:  # pragma: no cover
     sys = None
 
 
-def resolve(host="example.org", show=True):
+def resolve(host='example.org', show=True):
     """Test DNS resolution. Returns the resolved IP or None."""
     t0 = time.ticks_ms()
     try:
         ip = socket.getaddrinfo(host, 80)[0][-1][0]
         dt = time.ticks_diff(time.ticks_ms(), t0)
         if show:
-            print("  DNS {:<16} -> {} ({} ms)".format(host, ip, dt))
+            print('  DNS {:<16} -> {} ({} ms)'.format(host, ip, dt))
         return ip
     except OSError as e:
         if show:
-            print("  DNS {:<16} -> FAILED ({})".format(host, e))
+            print('  DNS {:<16} -> FAILED ({})'.format(host, e))
         return None
 
 
-def tcp_check(host="8.8.8.8", port=53, timeout=5, show=True):
+def tcp_check(host='8.8.8.8', port=53, timeout=5, show=True):
     """Test reachability via a TCP connect. Returns True/False."""
     addr = socket.getaddrinfo(host, port)[0][-1]
     s = socket.socket()
@@ -48,11 +48,11 @@ def tcp_check(host="8.8.8.8", port=53, timeout=5, show=True):
         s.connect(addr)
         dt = time.ticks_diff(time.ticks_ms(), t0)
         if show:
-            print("  TCP {}:{} -> reachable ({} ms)".format(host, port, dt))
+            print('  TCP {}:{} -> reachable ({} ms)'.format(host, port, dt))
         return True
     except OSError as e:
         if show:
-            print("  TCP {}:{} -> unreachable ({})".format(host, port, e))
+            print('  TCP {}:{} -> unreachable ({})'.format(host, port, e))
         return False
     finally:
         s.close()
@@ -60,7 +60,7 @@ def tcp_check(host="8.8.8.8", port=53, timeout=5, show=True):
 
 def _checksum(data):
     if len(data) & 1:
-        data += b"\x00"
+        data += b'\x00'
     cs = 0
     for i in range(0, len(data), 2):
         cs += (data[i] << 8) + data[i + 1]
@@ -69,8 +69,7 @@ def _checksum(data):
     return ~cs & 0xFFFF
 
 
-def ping(host="8.8.8.8", count=4, timeout=1000, interval=500, size=56,
-         show=True):
+def ping(host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True):
     """ICMP echo via a raw socket. Returns a stats dict (or None on setup
     failure). Caller is responsible for ensuring an interface is up.
     """
@@ -78,13 +77,13 @@ def ping(host="8.8.8.8", count=4, timeout=1000, interval=500, size=56,
         addr = socket.getaddrinfo(host, 1)[0][-1][0]
     except OSError as e:
         if show:
-            print("  ping: cannot resolve {} ({})".format(host, e))
+            print('  ping: cannot resolve {} ({})'.format(host, e))
         return None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, 1)
     except (OSError, AttributeError) as e:
         if show:
-            print("  ping: raw socket unavailable ({}); try tcp_check()".format(e))
+            print('  ping: raw socket unavailable ({}); try tcp_check()'.format(e))
         return None
 
     pid = time.ticks_ms() & 0xFFFF
@@ -93,18 +92,18 @@ def ping(host="8.8.8.8", count=4, timeout=1000, interval=500, size=56,
     rtts = []
     sent = 0
     if show:
-        print("PING {} ({}): {} data bytes".format(host, addr, size))
+        print('PING {} ({}): {} data bytes'.format(host, addr, size))
     try:
         for seq in range(1, count + 1):
-            payload = b"Q" * size
-            hdr = struct.pack("!BBHHH", 8, 0, 0, pid, seq)
+            payload = b'Q' * size
+            hdr = struct.pack('!BBHHH', 8, 0, 0, pid, seq)
             cks = _checksum(hdr + payload)
-            pkt = struct.pack("!BBHHH", 8, 0, cks, pid, seq) + payload
+            pkt = struct.pack('!BBHHH', 8, 0, cks, pid, seq) + payload
             try:
                 sock.sendto(pkt, (addr, 1))
             except OSError as e:
                 if show:
-                    print("  seq={} send failed ({})".format(seq, e))
+                    print('  seq={} send failed ({})'.format(seq, e))
                 sent += 1
                 continue
             sent += 1
@@ -119,19 +118,22 @@ def ping(host="8.8.8.8", count=4, timeout=1000, interval=500, size=56,
                 resp = sock.recv(128)
                 rtt = time.ticks_diff(time.ticks_ms(), t0)
                 ihl = (resp[0] & 0x0F) * 4
-                icmp = resp[ihl:ihl + 8]
+                icmp = resp[ihl : ihl + 8]
                 if len(icmp) < 8:
                     continue
-                r_type, _, _, r_id, r_seq = struct.unpack("!BBHHH", icmp)
+                r_type, _, _, r_id, r_seq = struct.unpack('!BBHHH', icmp)
                 if r_type == 0 and r_id == pid and r_seq == seq:
                     rtts.append(rtt)
                     if show:
-                        print("  {} bytes from {}: seq={} time={} ms".format(
-                            len(resp) - ihl, addr, seq, rtt))
+                        print(
+                            '  {} bytes from {}: seq={} time={} ms'.format(
+                                len(resp) - ihl, addr, seq, rtt
+                            )
+                        )
                     got = True
                     break
             if not got and show:
-                print("  seq={} timeout".format(seq))
+                print('  seq={} timeout'.format(seq))
             if seq < count:
                 time.sleep_ms(interval)
     finally:
@@ -140,16 +142,23 @@ def ping(host="8.8.8.8", count=4, timeout=1000, interval=500, size=56,
 
     recv = len(rtts)
     loss = round(100 * (sent - recv) / sent) if sent else 100
-    stats = {"host": host, "addr": addr, "sent": sent, "recv": recv,
-             "loss_pct": loss}
+    stats = {'host': host, 'addr': addr, 'sent': sent, 'recv': recv, 'loss_pct': loss}
     if rtts:
-        stats.update(min=min(rtts), max=max(rtts),
-                     avg=round(sum(rtts) / len(rtts), 1))
+        stats.update(min=min(rtts), max=max(rtts), avg=round(sum(rtts) / len(rtts), 1))
     if show:
-        print("  --- {} stats: {}/{} received, {}% loss{}".format(
-            host, recv, sent, loss,
-            "" if not rtts else ", rtt min/avg/max = {}/{}/{} ms".format(
-                stats["min"], stats["avg"], stats["max"])))
+        print(
+            '  --- {} stats: {}/{} received, {}% loss{}'.format(
+                host,
+                recv,
+                sent,
+                loss,
+                ''
+                if not rtts
+                else ', rtt min/avg/max = {}/{}/{} ms'.format(
+                    stats['min'], stats['avg'], stats['max']
+                ),
+            )
+        )
     return stats
 
 
@@ -160,35 +169,36 @@ def ping(host="8.8.8.8", count=4, timeout=1000, interval=500, size=56,
 # passing your own URL (e.g. a file on a local server) for LAN-only testing —
 # that's the most reliable way to compare WiFi vs Ethernet on the same network.
 DOWNLOAD_URLS = (
-    "http://ipv4.download.thinkbroadband.com/10MB.zip",
-    "http://speedtest.belwue.net/10M",
-    "http://proof.ovh.net/files/10Mb.dat",
+    'http://ipv4.download.thinkbroadband.com/10MB.zip',
+    'http://speedtest.belwue.net/10M',
+    'http://proof.ovh.net/files/10Mb.dat',
 )
 
-_UA = "esp32-p4-speedtest/1.0"
+_UA = 'esp32-p4-speedtest/1.0'
 
 
 def _parse_http_url(url):
-    proto, _, rest = url.partition("://")
-    if proto != "http":
-        raise ValueError("not plain http://: " + url)
-    hostport, _, path = rest.partition("/")
-    host, _, port = hostport.partition(":")
-    return host, int(port) if port else 80, "/" + path
+    proto, _, rest = url.partition('://')
+    if proto != 'http':
+        raise ValueError('not plain http://: ' + url)
+    hostport, _, path = rest.partition('/')
+    host, _, port = hostport.partition(':')
+    return host, int(port) if port else 80, '/' + path
 
 
 def _header_value(header, name):
     """Case-insensitive lookup of an HTTP header value (bytes)."""
     name = name.lower()
-    for line in header.split(b"\r\n")[1:]:
-        k, _, v = line.partition(b":")
+    for line in header.split(b'\r\n')[1:]:
+        k, _, v = line.partition(b':')
         if k.strip().lower() == name:
             return v.strip()
     return None
 
 
-def http_download(url, limit_bytes=8 * 1024 * 1024, limit_ms=10000,
-                  chunk=1460, show=True, _hops=3):
+def http_download(
+    url, limit_bytes=8 * 1024 * 1024, limit_ms=10000, chunk=1460, show=True, _hops=3
+):
     """Stream a URL over plain HTTP, counting bytes (discarded) until a byte
     or time cap. Follows HTTP redirects. Returns {bytes, ms, mbps, url} or
     None on failure.
@@ -197,54 +207,58 @@ def http_download(url, limit_bytes=8 * 1024 * 1024, limit_ms=10000,
         host, port, path = _parse_http_url(url)
     except ValueError:
         if show:
-            print("  download: {} is HTTPS — TLS not supported for speed test".format(url))
+            print(
+                '  download: {} is HTTPS — TLS not supported for speed test'.format(url)
+            )
         return None
     if show:
-        print("  GET {}".format(url))
+        print('  GET {}'.format(url))
     try:
         addr = socket.getaddrinfo(host, port)[0][-1]
     except OSError as e:
         if show:
-            print("  download: cannot resolve {} ({})".format(host, e))
+            print('  download: cannot resolve {} ({})'.format(host, e))
         return None
 
     s = socket.socket()
     s.settimeout(8)
     try:
         s.connect(addr)
-        req = ("GET {} HTTP/1.0\r\nHost: {}\r\nUser-Agent: {}\r\n"
-               "Accept: */*\r\nConnection: close\r\n\r\n").format(path, host, _UA)
+        req = (
+            'GET {} HTTP/1.0\r\nHost: {}\r\nUser-Agent: {}\r\n'
+            'Accept: */*\r\nConnection: close\r\n\r\n'
+        ).format(path, host, _UA)
         s.send(req.encode())
 
         # Read headers; keep any body bytes that arrive in the same recv.
-        buf = b""
-        while b"\r\n\r\n" not in buf:
+        buf = b''
+        while b'\r\n\r\n' not in buf:
             d = s.recv(256)
             if not d:
                 break
             buf += d
-        header, _, body = buf.partition(b"\r\n\r\n")
-        parts = header.split(b"\r\n", 1)[0].split(b" ", 2)
+        header, _, body = buf.partition(b'\r\n\r\n')
+        parts = header.split(b'\r\n', 1)[0].split(b' ', 2)
         code = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
 
         # Follow redirects (301/302/303/307/308).
         if code in (301, 302, 303, 307, 308) and _hops > 0:
-            loc = _header_value(header, "location")
+            loc = _header_value(header, 'location')
             s.close()
             if not loc:
                 if show:
-                    print("  download: {} with no Location".format(code))
+                    print('  download: {} with no Location'.format(code))
                 return None
             loc = loc.decode()
-            if loc.startswith("/"):
-                loc = "http://{}:{}{}".format(host, port, loc)
+            if loc.startswith('/'):
+                loc = 'http://{}:{}{}'.format(host, port, loc)
             if show:
-                print("  -> {} redirect".format(code))
+                print('  -> {} redirect'.format(code))
             return http_download(loc, limit_bytes, limit_ms, chunk, show, _hops - 1)
 
         if code // 100 != 2:
             if show:
-                print("  download: HTTP {} from {}".format(code, host))
+                print('  download: HTTP {} from {}'.format(code, host))
             return None
 
         total = len(body)
@@ -263,7 +277,7 @@ def http_download(url, limit_bytes=8 * 1024 * 1024, limit_ms=10000,
         dt = time.ticks_diff(time.ticks_ms(), t0)
     except OSError as e:
         if show:
-            print("  download: connection error ({})".format(e))
+            print('  download: connection error ({})'.format(e))
         return None
     finally:
         s.close()
@@ -271,26 +285,32 @@ def http_download(url, limit_bytes=8 * 1024 * 1024, limit_ms=10000,
     dt = dt if dt > 0 else 1
     mbps = round(total * 8 / dt / 1000, 2)  # bytes*8 / ms / 1000 = Mbit/s
     if show:
-        print("  Download   : {:.2f} Mbit/s  ({} KB in {} ms)".format(
-            mbps, total // 1024, dt))
-        print("  Source     : {}".format(url))
-    return {"bytes": total, "ms": dt, "mbps": mbps, "url": url}
+        print(
+            '  Download   : {:.2f} Mbit/s  ({} KB in {} ms)'.format(
+                mbps, total // 1024, dt
+            )
+        )
+        print('  Source     : {}'.format(url))
+    return {'bytes': total, 'ms': dt, 'mbps': mbps, 'url': url}
 
 
-def speedtest(download_url=None, ping_host="8.8.8.8", show=True):
+def speedtest(download_url=None, ping_host='8.8.8.8', show=True):
     """Latency (ping) + HTTP download throughput. Returns a summary dict."""
     if show:
-        print("Speed test (plain HTTP; needs internet):")
+        print('Speed test (plain HTTP; needs internet):')
 
     # Latency
     p = ping(ping_host, count=4, show=False)
-    latency = p.get("avg") if p else None
+    latency = p.get('avg') if p else None
     if show:
         if latency is not None:
-            print("  Latency    : {} ms avg ({}% loss, {})".format(
-                latency, p["loss_pct"], ping_host))
+            print(
+                '  Latency    : {} ms avg ({}% loss, {})'.format(
+                    latency, p['loss_pct'], ping_host
+                )
+            )
         else:
-            print("  Latency    : unavailable")
+            print('  Latency    : unavailable')
 
     # Download — try targets until one works
     dl = None
@@ -300,14 +320,16 @@ def speedtest(download_url=None, ping_host="8.8.8.8", show=True):
         if dl:
             break
     if not dl and show:
-        print("  Download   : FAILED (all targets unreachable/redirected)")
-        print("  Tip: pass a plain-http URL to a local file, e.g.")
+        print('  Download   : FAILED (all targets unreachable/redirected)')
+        print('  Tip: pass a plain-http URL to a local file, e.g.')
         print("       speedtest('http://192.168.0.10/test.bin')")
 
-    return {"latency_ms": latency,
-            "download_mbps": dl["mbps"] if dl else None,
-            "source": dl["url"] if dl else None,
-            "loss_pct": p["loss_pct"] if p else None}
+    return {
+        'latency_ms': latency,
+        'download_mbps': dl['mbps'] if dl else None,
+        'source': dl['url'] if dl else None,
+        'loss_pct': p['loss_pct'] if p else None,
+    }
 
 
 def run_action(action):
@@ -315,9 +337,9 @@ def run_action(action):
     try:
         action()
     except KeyboardInterrupt:
-        print("\n(interrupted — back to menu)")
+        print('\n(interrupted — back to menu)')
     except Exception as e:  # noqa: BLE001 - menus must never die silently
-        print("\n!! error during action:")
+        print('\n!! error during action:')
         if sys is not None:
             sys.print_exception(e)
         else:

@@ -1,0 +1,14 @@
+# ruff.toml — formatter/linter config for the ESP32-P4 test bench.
+# Run:  ruff format .      (format)
+#       ruff check .       (lint)
+
+line-length = 88
+target-version = 'py39'   # MicroPython targets 3.x syntax; this is for tooling
+
+[format]
+quote-style = 'single'    # prefer single quotes for strings
+indent-style = 'space'
+docstring-code-format = false
+
+[lint.per-file-ignores]
+'**/__init__.py' = ['F401']   # package re-exports are intentional

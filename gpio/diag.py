@@ -20,54 +20,56 @@ import machine
 
 
 class GPIODiagnostics:
-
     def blink(self, pin, count=5, period_ms=500, show=True):
         """Toggle `pin` on/off `count` times with `period_ms` per half-cycle."""
         p = machine.Pin(pin, machine.Pin.OUT)
         if show:
-            print("  Blinking GPIO{} x{} ({} ms)...".format(pin, count, period_ms))
+            print('  Blinking GPIO{} x{} ({} ms)...'.format(pin, count, period_ms))
         try:
             for i in range(count):
                 p.value(1)
                 if show:
-                    print("    [{}/{}] HIGH".format(i + 1, count))
+                    print('    [{}/{}] HIGH'.format(i + 1, count))
                 time.sleep_ms(period_ms)
                 p.value(0)
                 time.sleep_ms(period_ms)
         except KeyboardInterrupt:
             p.value(0)
-            print("  stopped.")
+            print('  stopped.')
         if show:
-            print("  done (GPIO{} left LOW).".format(pin))
-        return {"pin": pin, "count": count}
+            print('  done (GPIO{} left LOW).'.format(pin))
+        return {'pin': pin, 'count': count}
 
     def high(self, pin, show=True):
         machine.Pin(pin, machine.Pin.OUT).value(1)
         if show:
-            print("  GPIO{} driven HIGH".format(pin))
+            print('  GPIO{} driven HIGH'.format(pin))
 
     def low(self, pin, show=True):
         machine.Pin(pin, machine.Pin.OUT).value(0)
         if show:
-            print("  GPIO{} driven LOW".format(pin))
+            print('  GPIO{} driven LOW'.format(pin))
 
     def read(self, pin, pull=None, show=True):
         """Read `pin` as input. pull: None / 'up' / 'down'."""
-        pulls = {None: None, "up": machine.Pin.PULL_UP,
-                 "down": getattr(machine.Pin, "PULL_DOWN", None)}
+        pulls = {
+            None: None,
+            'up': machine.Pin.PULL_UP,
+            'down': getattr(machine.Pin, 'PULL_DOWN', None),
+        }
         p = machine.Pin(pin, machine.Pin.IN, pulls.get(pull))
         v = p.value()
         if show:
-            print("  GPIO{} reads {} (pull={})".format(pin, v, pull or "none"))
+            print('  GPIO{} reads {} (pull={})'.format(pin, v, pull or 'none'))
         return v
 
     def report(self):
-        print("=" * 78)
-        print("GPIO Test — ESP32-P4")
-        print("=" * 78)
-        print("  No dedicated user LED on the P4-NANO; use the menu to drive or")
-        print("  read any GPIO. Wire an LED+resistor or a meter to a header pin.")
-        print("=" * 78)
+        print('=' * 78)
+        print('GPIO Test — ESP32-P4')
+        print('=' * 78)
+        print('  No dedicated user LED on the P4-NANO; use the menu to drive or')
+        print('  read any GPIO. Wire an LED+resistor or a meter to a header pin.')
+        print('=' * 78)
 
 
 # -- interactive menu ----------------------------------------------------
@@ -81,12 +83,13 @@ Choose: """
 
 
 def _ask_pin():
-    s = input("GPIO number: ").strip()
+    s = input('GPIO number: ').strip()
     return int(s) if s else None
 
 
 def main(g=None):
     import netutils
+
     g = g or GPIODiagnostics()
     while True:
         try:
@@ -94,29 +97,30 @@ def main(g=None):
         except (EOFError, KeyboardInterrupt):
             print()
             return g
-        print("> option {}".format(choice))
-        if choice == "1":
+        print('> option {}'.format(choice))
+        if choice == '1':
             pin = _ask_pin()
             if pin is None:
                 continue
-            n = input("count [10]: ").strip()
-            ms = input("period ms [250]: ").strip()
-            netutils.run_action(lambda: g.blink(
-                pin, int(n) if n else 10, int(ms) if ms else 250))
-        elif choice == "2":
+            n = input('count [10]: ').strip()
+            ms = input('period ms [250]: ').strip()
+            netutils.run_action(
+                lambda: g.blink(pin, int(n) if n else 10, int(ms) if ms else 250)
+            )
+        elif choice == '2':
             pin = _ask_pin()
             if pin is not None:
                 netutils.run_action(lambda: g.high(pin))
-        elif choice == "3":
+        elif choice == '3':
             pin = _ask_pin()
             if pin is not None:
                 netutils.run_action(lambda: g.low(pin))
-        elif choice == "4":
+        elif choice == '4':
             pin = _ask_pin()
             if pin is not None:
-                pull = input("pull up/down/none [none]: ").strip() or None
+                pull = input('pull up/down/none [none]: ').strip() or None
                 netutils.run_action(lambda: g.read(pin, pull))
-        elif choice == "0":
+        elif choice == '0':
             return g
         else:
-            print("?")
+            print('?')

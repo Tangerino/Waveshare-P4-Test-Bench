@@ -31,11 +31,11 @@ import network
 
 import netutils
 
-PHY_NAME = "IP101"     # -> network.PHY_IP101
+PHY_NAME = 'IP101'  # -> network.PHY_IP101
 PIN_MDC = 31
 PIN_MDIO = 52
-PIN_POWER = 51         # PHY reset / enable
-PIN_REF_CLK = 50       # 50 MHz RMII reference clock, input to the P4
+PIN_POWER = 51  # PHY reset / enable
+PIN_REF_CLK = 50  # 50 MHz RMII reference clock, input to the P4
 PHY_ADDR = 1
 
 
@@ -49,25 +49,35 @@ class EthernetDiagnostics:
         """Construct the LAN interface once, with sensible fallbacks."""
         if self.lan is not None:
             return self.lan
-        if not hasattr(network, "LAN"):
-            raise OSError("network.LAN not in this firmware — no Ethernet build")
+        if not hasattr(network, 'LAN'):
+            raise OSError('network.LAN not in this firmware — no Ethernet build')
 
         from machine import Pin
-        phy = getattr(network, "PHY_" + PHY_NAME, None)
+
+        phy = getattr(network, 'PHY_' + PHY_NAME, None)
         try:
             self.lan = network.LAN(
-                mdc=Pin(PIN_MDC), mdio=Pin(PIN_MDIO),
+                mdc=Pin(PIN_MDC),
+                mdio=Pin(PIN_MDIO),
                 power=Pin(PIN_POWER),
-                ref_clk=Pin(PIN_REF_CLK), ref_clk_mode=Pin.IN,
-                phy_type=phy, phy_addr=PHY_ADDR)
-            print("  LAN configured: IP101 mdc={} mdio={} power={} clk={}(IN)".format(
-                PIN_MDC, PIN_MDIO, PIN_POWER, PIN_REF_CLK))
+                ref_clk=Pin(PIN_REF_CLK),
+                ref_clk_mode=Pin.IN,
+                phy_type=phy,
+                phy_addr=PHY_ADDR,
+            )
+            print(
+                '  LAN configured: IP101 mdc={} mdio={} power={} clk={}(IN)'.format(
+                    PIN_MDC, PIN_MDIO, PIN_POWER, PIN_REF_CLK
+                )
+            )
         except (TypeError, ValueError, OSError) as e:
             # Different builds expose slightly different LAN signatures; fall
             # back to whatever board config the firmware already knows.
-            print("  explicit LAN config failed ({}); trying firmware default".format(e))
+            print(
+                '  explicit LAN config failed ({}); trying firmware default'.format(e)
+            )
             self.lan = network.LAN()
-            print("  LAN configured from firmware board defaults")
+            print('  LAN configured from firmware board defaults')
         return self.lan
 
     # -- link control ----------------------------------------------------
@@ -78,18 +88,21 @@ class EthernetDiagnostics:
         if not lan.active():
             lan.active(True)
         if show:
-            print("Bringing Ethernet up (link + DHCP, up to {}s)...".format(timeout))
+            print('Bringing Ethernet up (link + DHCP, up to {}s)...'.format(timeout))
         deadline = time.ticks_add(time.ticks_ms(), timeout * 1000)
         while not lan.isconnected():
             if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
-                print("  TIMEOUT: no link/DHCP. Check cable, PHY power (GPIO{}),".format(
-                    PIN_POWER))
-                print("  and that the firmware RMII data pins match this board.")
+                print(
+                    '  TIMEOUT: no link/DHCP. Check cable, PHY power (GPIO{}),'.format(
+                        PIN_POWER
+                    )
+                )
+                print('  and that the firmware RMII data pins match this board.')
                 self.status(show=True)
                 return False
             time.sleep_ms(250)
         if show:
-            print("  link up.")
+            print('  link up.')
             self.ifconfig(show=True)
         return True
 
@@ -100,102 +113,102 @@ class EthernetDiagnostics:
             except OSError:
                 pass
         if show:
-            print("  Ethernet down.")
+            print('  Ethernet down.')
 
     def ensure_up(self):
         """Auto-bring-up if not already linked (no prompts)."""
         if self.lan is not None and self.lan.isconnected():
             return True
-        print("  (auto-bringing Ethernet up ...)")
+        print('  (auto-bringing Ethernet up ...)')
         return self.up()
 
     # -- info ------------------------------------------------------------
 
     def status(self, show=True):
         lan = self.lan
-        info = {"configured": lan is not None}
+        info = {'configured': lan is not None}
         if lan is not None:
             try:
-                info["active"] = lan.active()
+                info['active'] = lan.active()
             except OSError:
-                info["active"] = "?"
+                info['active'] = '?'
             try:
-                info["link_up"] = lan.isconnected()
+                info['link_up'] = lan.isconnected()
             except OSError:
-                info["link_up"] = "?"
+                info['link_up'] = '?'
         if show:
-            print("  Configured : {}".format(info["configured"]))
+            print('  Configured : {}'.format(info['configured']))
             if lan is not None:
-                print("  Active     : {}".format(info.get("active")))
-                print("  Link up    : {}".format(info.get("link_up")))
-                print("  MAC        : {}".format(self.mac()))
+                print('  Active     : {}'.format(info.get('active')))
+                print('  Link up    : {}'.format(info.get('link_up')))
+                print('  MAC        : {}'.format(self.mac()))
         return info
 
     def mac(self):
         try:
-            m = self.lan.config("mac")
-            return ":".join("{:02x}".format(b) for b in m)
+            m = self.lan.config('mac')
+            return ':'.join('{:02x}'.format(b) for b in m)
         except (ValueError, OSError, AttributeError):
-            return "unavailable"
+            return 'unavailable'
 
     def ifconfig(self, show=True):
         if self.lan is None:
-            print("  not configured — run up() first.")
+            print('  not configured — run up() first.')
             return None
         ip, mask, gw, dns = self.lan.ifconfig()
-        info = {"ip": ip, "netmask": mask, "gateway": gw, "dns": dns}
+        info = {'ip': ip, 'netmask': mask, 'gateway': gw, 'dns': dns}
         if show:
-            print("  IP address : {}".format(ip))
-            print("  Netmask    : {}".format(mask))
-            print("  Gateway    : {}".format(gw))
-            print("  DNS        : {}".format(dns))
+            print('  IP address : {}'.format(ip))
+            print('  Netmask    : {}'.format(mask))
+            print('  Gateway    : {}'.format(gw))
+            print('  DNS        : {}'.format(dns))
         return info
 
     # -- connectivity ----------------------------------------------------
 
-    def ping(self, host="8.8.8.8", **kw):
+    def ping(self, host='8.8.8.8', **kw):
         if not self.ensure_up():
-            print("  ping: link not up.")
+            print('  ping: link not up.')
             return None
         return netutils.ping(host, **kw)
 
     def speedtest(self, url=None, show=True):
         if not self.ensure_up():
-            print("  link not up; cannot run speed test.")
+            print('  link not up; cannot run speed test.')
             return None
         return netutils.speedtest(download_url=url, show=show)
 
     def connectivity(self, show=True):
         if not self.ensure_up():
-            print("  link not up; cannot test connectivity.")
-            return {"link_up": False}
+            print('  link not up; cannot test connectivity.')
+            return {'link_up': False}
         if show:
-            print("\nConnectivity:")
-        dns_ok = netutils.resolve("example.org", show=show) is not None
-        net_ok = netutils.tcp_check("8.8.8.8", 53, show=show)
-        return {"link_up": True, "dns_ok": dns_ok, "internet_ok": net_ok}
+            print('\nConnectivity:')
+        dns_ok = netutils.resolve('example.org', show=show) is not None
+        net_ok = netutils.tcp_check('8.8.8.8', 53, show=show)
+        return {'link_up': True, 'dns_ok': dns_ok, 'internet_ok': net_ok}
 
     # -- full report -----------------------------------------------------
 
     def report(self):
-        print("=" * 78)
-        print("Ethernet Diagnostics — ESP32-P4-NANO / IP101 (MicroPython)")
-        print("=" * 78)
+        print('=' * 78)
+        print('Ethernet Diagnostics — ESP32-P4-NANO / IP101 (MicroPython)')
+        print('=' * 78)
         if not self.up(show=True):
-            print("\nStatus:")
+            print('\nStatus:')
             self.status(show=True)
-            print("=" * 78)
+            print('=' * 78)
             return
-        print("\nStatus:")
+        print('\nStatus:')
         self.status(show=True)
-        print("\nIP configuration:")
+        print('\nIP configuration:')
         self.ifconfig(show=True)
         self.connectivity(show=True)
-        print("\nPing:")
+        print('\nPing:')
         self.ping(show=True)
-        print("\nSpeed:")
+        print('\nSpeed:')
         self.speedtest(show=True)
-        print("=" * 78)
+        print('=' * 78)
 
 
 # -- interactive menu ----------------------------------------------------
@@ -219,25 +232,25 @@ def main(e=None):
         except (EOFError, KeyboardInterrupt):
             print()
             return e
-        print("> option {}".format(choice))
-        if choice == "1":
+        print('> option {}'.format(choice))
+        if choice == '1':
             netutils.run_action(e.report)
-        elif choice == "2":
+        elif choice == '2':
             netutils.run_action(e.up)
-        elif choice == "3":
+        elif choice == '3':
             netutils.run_action(e.status)
-        elif choice == "4":
+        elif choice == '4':
             netutils.run_action(e.ifconfig)
-        elif choice == "5":
+        elif choice == '5':
             netutils.run_action(e.connectivity)
-        elif choice == "6":
-            host = input("host [8.8.8.8]: ").strip() or "8.8.8.8"
+        elif choice == '6':
+            host = input('host [8.8.8.8]: ').strip() or '8.8.8.8'
             netutils.run_action(lambda: e.ping(host))
-        elif choice == "7":
+        elif choice == '7':
             netutils.run_action(e.speedtest)
-        elif choice == "9":
+        elif choice == '9':
             netutils.run_action(e.down)
-        elif choice == "0":
+        elif choice == '0':
             return e
         else:
-            print("?")
+            print('?')

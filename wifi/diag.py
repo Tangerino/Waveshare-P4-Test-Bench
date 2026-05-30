@@ -41,38 +41,45 @@ except ImportError:  # pragma: no cover
 # Falls back to blanks if absent — then pass creds explicitly to connect().
 try:
     import secrets
-    DEFAULT_SSID = getattr(secrets, "WIFI_SSID", "")
-    DEFAULT_PASSWORD = getattr(secrets, "WIFI_PASSWORD", "")
+
+    DEFAULT_SSID = getattr(secrets, 'WIFI_SSID', '')
+    DEFAULT_PASSWORD = getattr(secrets, 'WIFI_PASSWORD', '')
 except ImportError:
-    DEFAULT_SSID = ""
-    DEFAULT_PASSWORD = ""
+    DEFAULT_SSID = ''
+    DEFAULT_PASSWORD = ''
 
 
 # ESP-IDF authmode -> human readable. The integer in scan()/status comes
 # straight from the C6 radio (esp_wifi_types: wifi_auth_mode_t).
 AUTHMODE = {
-    0: "OPEN",
-    1: "WEP",
-    2: "WPA-PSK",
-    3: "WPA2-PSK",
-    4: "WPA/WPA2-PSK",
-    5: "WPA2-ENTERPRISE",
-    6: "WPA3-PSK",
-    7: "WPA2/WPA3-PSK",
-    8: "WAPI-PSK",
-    9: "OWE",
-    10: "WPA3-ENT-192",
+    0: 'OPEN',
+    1: 'WEP',
+    2: 'WPA-PSK',
+    3: 'WPA2-PSK',
+    4: 'WPA/WPA2-PSK',
+    5: 'WPA2-ENTERPRISE',
+    6: 'WPA3-PSK',
+    7: 'WPA2/WPA3-PSK',
+    8: 'WAPI-PSK',
+    9: 'OWE',
+    10: 'WPA3-ENT-192',
 }
 
 # network.STAT_* codes -> human readable (ESP32 set).
 STATUS = {
-    network.STAT_IDLE: "IDLE",
-    network.STAT_CONNECTING: "CONNECTING",
-    network.STAT_GOT_IP: "GOT_IP",
+    network.STAT_IDLE: 'IDLE',
+    network.STAT_CONNECTING: 'CONNECTING',
+    network.STAT_GOT_IP: 'GOT_IP',
 }
 # These are not present on every build; add them defensively.
-for _name in ("STAT_WRONG_PASSWORD", "STAT_NO_AP_FOUND", "STAT_CONNECT_FAIL",
-              "STAT_ASSOC_FAIL", "STAT_HANDSHAKE_TIMEOUT", "STAT_BEACON_TIMEOUT"):
+for _name in (
+    'STAT_WRONG_PASSWORD',
+    'STAT_NO_AP_FOUND',
+    'STAT_CONNECT_FAIL',
+    'STAT_ASSOC_FAIL',
+    'STAT_HANDSHAKE_TIMEOUT',
+    'STAT_BEACON_TIMEOUT',
+):
     _code = getattr(network, _name, None)
     if _code is not None:
         STATUS[_code] = _name[5:]  # drop "STAT_"
@@ -81,7 +88,7 @@ for _name in ("STAT_WRONG_PASSWORD", "STAT_NO_AP_FOUND", "STAT_CONNECT_FAIL",
 # WLAN.PM_* power-management modes (modem sleep). Built from whatever the
 # firmware exposes so it stays correct across builds.
 PM_MODES = {}
-for _name in ("PM_NONE", "PM_PERFORMANCE", "PM_POWERSAVE"):
+for _name in ('PM_NONE', 'PM_PERFORMANCE', 'PM_POWERSAVE'):
     _val = getattr(network.WLAN, _name, None)
     if _val is not None:
         PM_MODES[_val] = _name[3:]  # drop "PM_"
@@ -102,22 +109,22 @@ def channel_to_freq(ch):
 
 def band_label(freq):
     if freq is None:
-        return "?"
-    return "2.4 GHz" if freq < 3000 else "5 GHz"
+        return '?'
+    return '2.4 GHz' if freq < 3000 else '5 GHz'
 
 
 def rssi_quality(rssi):
     """Map an RSSI (dBm) onto a human label and a rough 0-100% quality."""
     if rssi >= -50:
-        label = "excellent"
+        label = 'excellent'
     elif rssi >= -60:
-        label = "good"
+        label = 'good'
     elif rssi >= -70:
-        label = "fair"
+        label = 'fair'
     elif rssi >= -80:
-        label = "weak"
+        label = 'weak'
     else:
-        label = "very weak"
+        label = 'very weak'
     # Clamp the common [-100, -50] dBm window onto 0-100%.
     pct = max(0, min(100, 2 * (rssi + 100)))
     return label, pct
@@ -125,11 +132,11 @@ def rssi_quality(rssi):
 
 def fmt_bssid(bssid):
     """bytes b'\\x96A...' -> '96:41:b2:b0:b0:86'."""
-    return ":".join("{:02x}".format(b) for b in bssid)
+    return ':'.join('{:02x}'.format(b) for b in bssid)
 
 
 def fmt_authmode(mode):
-    return AUTHMODE.get(mode, "UNKNOWN({})".format(mode))
+    return AUTHMODE.get(mode, 'UNKNOWN({})'.format(mode))
 
 
 class WiFiDiagnostics:
@@ -158,20 +165,20 @@ class WiFiDiagnostics:
         """
         if self.sta.isconnected():
             return True
-        print("  (auto-connecting to {!r} ...)".format(DEFAULT_SSID))
+        print('  (auto-connecting to {!r} ...)'.format(DEFAULT_SSID))
         return self.connect()
 
     def mac(self):
         try:
-            return fmt_bssid(self.sta.config("mac"))
+            return fmt_bssid(self.sta.config('mac'))
         except (ValueError, OSError):
-            return "unavailable"
+            return 'unavailable'
 
     def status_str(self):
         try:
-            return STATUS.get(self.sta.status(), "status({})".format(self.sta.status()))
+            return STATUS.get(self.sta.status(), 'status({})'.format(self.sta.status()))
         except OSError:
-            return "unavailable"
+            return 'unavailable'
 
     # -- scan ------------------------------------------------------------
 
@@ -182,32 +189,44 @@ class WiFiDiagnostics:
         nets = []
         for ssid, bssid, channel, rssi, authmode, hidden in raw:
             label, pct = rssi_quality(rssi)
-            nets.append({
-                "ssid": ssid.decode() if ssid else "<hidden>",
-                "bssid": fmt_bssid(bssid),
-                "channel": channel,
-                "rssi": rssi,
-                "quality": pct,
-                "quality_label": label,
-                "auth": fmt_authmode(authmode),
-                "hidden": bool(hidden),
-            })
-        nets.sort(key=lambda n: n["rssi"], reverse=True)
+            nets.append(
+                {
+                    'ssid': ssid.decode() if ssid else '<hidden>',
+                    'bssid': fmt_bssid(bssid),
+                    'channel': channel,
+                    'rssi': rssi,
+                    'quality': pct,
+                    'quality_label': label,
+                    'auth': fmt_authmode(authmode),
+                    'hidden': bool(hidden),
+                }
+            )
+        nets.sort(key=lambda n: n['rssi'], reverse=True)
         if show:
             self._print_scan(nets)
         return nets
 
     def _print_scan(self, nets):
-        print("\n{} network(s) found:".format(len(nets)))
-        print("-" * 78)
-        print("{:<24} {:>4} {:>5} {:>4}% {:<14} {}".format(
-            "SSID", "CH", "RSSI", "QUAL", "SECURITY", "BSSID"))
-        print("-" * 78)
+        print('\n{} network(s) found:'.format(len(nets)))
+        print('-' * 78)
+        print(
+            '{:<24} {:>4} {:>5} {:>4}% {:<14} {}'.format(
+                'SSID', 'CH', 'RSSI', 'QUAL', 'SECURITY', 'BSSID'
+            )
+        )
+        print('-' * 78)
         for n in nets:
-            print("{:<24} {:>4} {:>5} {:>4} {:<14} {}".format(
-                n["ssid"][:24], n["channel"], n["rssi"],
-                n["quality"], n["auth"], n["bssid"]))
-        print("-" * 78)
+            print(
+                '{:<24} {:>4} {:>5} {:>4} {:<14} {}'.format(
+                    n['ssid'][:24],
+                    n['channel'],
+                    n['rssi'],
+                    n['quality'],
+                    n['auth'],
+                    n['bssid'],
+                )
+            )
+        print('-' * 78)
 
     # -- connect ---------------------------------------------------------
 
@@ -218,10 +237,10 @@ class WiFiDiagnostics:
         """
         self.ensure_active()
         if self.sta.isconnected():
-            print("Already connected; disconnecting first.")
+            print('Already connected; disconnecting first.')
             self.disconnect()
 
-        print("Connecting to {!r} ...".format(ssid))
+        print('Connecting to {!r} ...'.format(ssid))
         self.sta.connect(ssid, password)
 
         deadline = time.ticks_add(time.ticks_ms(), timeout * 1000)
@@ -229,15 +248,18 @@ class WiFiDiagnostics:
         while not self.sta.isconnected():
             st = self.status_str()
             if st != last_status:
-                print("  status: {}".format(st))
+                print('  status: {}'.format(st))
                 last_status = st
             if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
-                print("Connection FAILED (timeout after {}s, status: {})".format(
-                    timeout, self.status_str()))
+                print(
+                    'Connection FAILED (timeout after {}s, status: {})'.format(
+                        timeout, self.status_str()
+                    )
+                )
                 return False
             time.sleep_ms(250)
 
-        print("Connected.")
+        print('Connected.')
         self.ifconfig()
         return True
 
@@ -256,12 +278,12 @@ class WiFiDiagnostics:
 
     def ifconfig(self, show=True):
         ip, mask, gw, dns = self.sta.ifconfig()
-        info = {"ip": ip, "netmask": mask, "gateway": gw, "dns": dns}
+        info = {'ip': ip, 'netmask': mask, 'gateway': gw, 'dns': dns}
         if show:
-            print("  IP address : {}".format(ip))
-            print("  Netmask    : {}".format(mask))
-            print("  Gateway    : {}".format(gw))
-            print("  DNS        : {}".format(dns))
+            print('  IP address : {}'.format(ip))
+            print('  Netmask    : {}'.format(mask))
+            print('  Gateway    : {}'.format(gw))
+            print('  DNS        : {}'.format(dns))
         return info
 
     def link(self, show=True, scan_results=None):
@@ -274,47 +296,52 @@ class WiFiDiagnostics:
         """
         self.ensure_connected()
         connected = self.sta.isconnected()
-        info = {"connected": connected, "status": self.status_str()}
+        info = {'connected': connected, 'status': self.status_str()}
         if connected:
             try:
-                rssi = self.sta.status("rssi")
+                rssi = self.sta.status('rssi')
                 label, pct = rssi_quality(rssi)
                 info.update(rssi=rssi, quality=pct, quality_label=label)
             except (OSError, ValueError):
                 pass
             try:
-                info["ssid"] = self.sta.config("ssid")
+                info['ssid'] = self.sta.config('ssid')
             except (OSError, ValueError):
                 pass
             try:
-                ch = self.sta.config("channel")
-                info["channel"] = ch
-                info["freq"] = channel_to_freq(ch)
-                info["band"] = band_label(info["freq"])
+                ch = self.sta.config('channel')
+                info['channel'] = ch
+                info['freq'] = channel_to_freq(ch)
+                info['band'] = band_label(info['freq'])
             except (OSError, ValueError):
                 pass
             # Security/BSSID aren't exposed directly for the STA link; match
             # the connected SSID against scan results (strongest wins).
-            ap = self._match_ap(info.get("ssid"), scan_results)
+            ap = self._match_ap(info.get('ssid'), scan_results)
             if ap:
-                info["auth"] = ap["auth"]
-                info.setdefault("bssid", ap["bssid"])
+                info['auth'] = ap['auth']
+                info.setdefault('bssid', ap['bssid'])
         if show:
-            print("  Connected  : {}".format(connected))
-            print("  Status     : {}".format(info["status"]))
-            if "ssid" in info:
-                print("  SSID       : {}".format(info["ssid"]))
-            if "bssid" in info:
-                print("  BSSID      : {}".format(info["bssid"]))
-            if "channel" in info:
-                print("  Channel    : {} ({} MHz, {})".format(
-                    info["channel"], info.get("freq", "?"),
-                    info.get("band", "?")))
-            if "auth" in info:
-                print("  Security   : {}".format(info["auth"]))
-            if "rssi" in info:
-                print("  RSSI       : {} dBm ({}, {}%)".format(
-                    info["rssi"], info["quality_label"], info["quality"]))
+            print('  Connected  : {}'.format(connected))
+            print('  Status     : {}'.format(info['status']))
+            if 'ssid' in info:
+                print('  SSID       : {}'.format(info['ssid']))
+            if 'bssid' in info:
+                print('  BSSID      : {}'.format(info['bssid']))
+            if 'channel' in info:
+                print(
+                    '  Channel    : {} ({} MHz, {})'.format(
+                        info['channel'], info.get('freq', '?'), info.get('band', '?')
+                    )
+                )
+            if 'auth' in info:
+                print('  Security   : {}'.format(info['auth']))
+            if 'rssi' in info:
+                print(
+                    '  RSSI       : {} dBm ({}, {}%)'.format(
+                        info['rssi'], info['quality_label'], info['quality']
+                    )
+                )
         return info
 
     def _match_ap(self, ssid, scan_results=None):
@@ -326,14 +353,14 @@ class WiFiDiagnostics:
                 scan_results = self.scan(show=False)
             except OSError:
                 return None
-        matches = [n for n in scan_results if n["ssid"] == ssid]
+        matches = [n for n in scan_results if n['ssid'] == ssid]
         if not matches:
             return None
-        return max(matches, key=lambda n: n["rssi"])
+        return max(matches, key=lambda n: n['rssi'])
 
     # -- connectivity ----------------------------------------------------
 
-    def resolve(self, host="example.org", show=True):
+    def resolve(self, host='example.org', show=True):
         """Test DNS resolution. Returns the resolved IP or None."""
         t0 = time.ticks_ms()
         try:
@@ -341,14 +368,14 @@ class WiFiDiagnostics:
             ip = ai[0][-1][0]
             dt = time.ticks_diff(time.ticks_ms(), t0)
             if show:
-                print("  DNS {:<16} -> {} ({} ms)".format(host, ip, dt))
+                print('  DNS {:<16} -> {} ({} ms)'.format(host, ip, dt))
             return ip
         except OSError as e:
             if show:
-                print("  DNS {:<16} -> FAILED ({})".format(host, e))
+                print('  DNS {:<16} -> FAILED ({})'.format(host, e))
             return None
 
-    def tcp_check(self, host="8.8.8.8", port=53, timeout=5, show=True):
+    def tcp_check(self, host='8.8.8.8', port=53, timeout=5, show=True):
         """Test raw internet reachability via a TCP connect."""
         addr = socket.getaddrinfo(host, port)[0][-1]
         s = socket.socket()
@@ -358,11 +385,11 @@ class WiFiDiagnostics:
             s.connect(addr)
             dt = time.ticks_diff(time.ticks_ms(), t0)
             if show:
-                print("  TCP {}:{} -> reachable ({} ms)".format(host, port, dt))
+                print('  TCP {}:{} -> reachable ({} ms)'.format(host, port, dt))
             return True
         except OSError as e:
             if show:
-                print("  TCP {}:{} -> unreachable ({})".format(host, port, e))
+                print('  TCP {}:{} -> unreachable ({})'.format(host, port, e))
             return False
         finally:
             s.close()
@@ -370,30 +397,35 @@ class WiFiDiagnostics:
     def speedtest(self, url=None, show=True):
         """Latency + HTTP download throughput over the WiFi link."""
         if not self.ensure_connected():
-            print("auto-connect failed; cannot run speed test.")
+            print('auto-connect failed; cannot run speed test.')
             return None
         return netutils.speedtest(download_url=url, show=show)
 
     def connectivity(self, show=True):
         """End-to-end: gateway, DNS, and internet reachability."""
         if not self.ensure_connected():
-            print("auto-connect failed; cannot test connectivity.")
-            return {"connected": False}
+            print('auto-connect failed; cannot test connectivity.')
+            return {'connected': False}
         if show:
-            print("\nConnectivity:")
+            print('\nConnectivity:')
         cfg = self.ifconfig(show=False)
-        gw_ok = self.tcp_check(cfg["gateway"], 80, timeout=3, show=False) or \
-            self._ping_gateway(cfg["gateway"], show)
-        dns_ok = self.resolve("example.org", show=show) is not None
-        net_ok = self.tcp_check("8.8.8.8", 53, show=show)
-        return {"connected": True, "gateway_reachable": gw_ok,
-                "dns_ok": dns_ok, "internet_ok": net_ok}
+        gw_ok = self.tcp_check(
+            cfg['gateway'], 80, timeout=3, show=False
+        ) or self._ping_gateway(cfg['gateway'], show)
+        dns_ok = self.resolve('example.org', show=show) is not None
+        net_ok = self.tcp_check('8.8.8.8', 53, show=show)
+        return {
+            'connected': True,
+            'gateway_reachable': gw_ok,
+            'dns_ok': dns_ok,
+            'internet_ok': net_ok,
+        }
 
     def _ping_gateway(self, gw, show=True):
         # No ICMP in stock MicroPython; treat a resolvable+routable gateway
         # as reachable if we already hold a lease from it.
         if show:
-            print("  Gateway    : {} (lease held)".format(gw))
+            print('  Gateway    : {} (lease held)'.format(gw))
         return True
 
     # -- ICMP ping -------------------------------------------------------
@@ -401,7 +433,7 @@ class WiFiDiagnostics:
     @staticmethod
     def _checksum(data):
         if len(data) & 1:
-            data += b"\x00"
+            data += b'\x00'
         cs = 0
         for i in range(0, len(data), 2):
             cs += (data[i] << 8) + data[i + 1]
@@ -409,28 +441,29 @@ class WiFiDiagnostics:
         cs = (cs & 0xFFFF) + (cs >> 16)
         return ~cs & 0xFFFF
 
-    def ping(self, host="8.8.8.8", count=4, timeout=1000, interval=500,
-             size=56, show=True):
+    def ping(
+        self, host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True
+    ):
         """ICMP echo via a raw socket. RTTs in ms.
 
         Needs raw-socket support in the firmware/lwIP; if unavailable it says
         so (use tcp_check() as a fallback). Returns a stats dict.
         """
         if not self.ensure_connected():
-            print("  ping: auto-connect failed; cannot ping.")
+            print('  ping: auto-connect failed; cannot ping.')
             return None
         try:
             addr = socket.getaddrinfo(host, 1)[0][-1][0]
         except OSError as e:
             if show:
-                print("  ping: cannot resolve {} ({})".format(host, e))
+                print('  ping: cannot resolve {} ({})'.format(host, e))
             return None
 
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, 1)
         except (OSError, AttributeError) as e:
             if show:
-                print("  ping: raw socket unavailable ({}); try tcp_check()".format(e))
+                print('  ping: raw socket unavailable ({}); try tcp_check()'.format(e))
             return None
 
         pid = time.ticks_ms() & 0xFFFF
@@ -439,18 +472,18 @@ class WiFiDiagnostics:
         rtts = []
         sent = 0
         if show:
-            print("PING {} ({}): {} data bytes".format(host, addr, size))
+            print('PING {} ({}): {} data bytes'.format(host, addr, size))
         try:
             for seq in range(1, count + 1):
-                payload = b"Q" * size
-                hdr = struct.pack("!BBHHH", 8, 0, 0, pid, seq)
+                payload = b'Q' * size
+                hdr = struct.pack('!BBHHH', 8, 0, 0, pid, seq)
                 cks = self._checksum(hdr + payload)
-                pkt = struct.pack("!BBHHH", 8, 0, cks, pid, seq) + payload
+                pkt = struct.pack('!BBHHH', 8, 0, cks, pid, seq) + payload
                 try:
                     sock.sendto(pkt, (addr, 1))
                 except OSError as e:
                     if show:
-                        print("  seq={} send failed ({})".format(seq, e))
+                        print('  seq={} send failed ({})'.format(seq, e))
                     sent += 1
                     continue
                 sent += 1
@@ -466,19 +499,22 @@ class WiFiDiagnostics:
                     resp = sock.recv(128)
                     rtt = time.ticks_diff(time.ticks_ms(), t0)
                     ihl = (resp[0] & 0x0F) * 4
-                    icmp = resp[ihl:ihl + 8]
+                    icmp = resp[ihl : ihl + 8]
                     if len(icmp) < 8:
                         continue
-                    r_type, _, _, r_id, r_seq = struct.unpack("!BBHHH", icmp)
+                    r_type, _, _, r_id, r_seq = struct.unpack('!BBHHH', icmp)
                     if r_type == 0 and r_id == pid and r_seq == seq:
                         rtts.append(rtt)
                         if show:
-                            print("  {} bytes from {}: seq={} time={} ms".format(
-                                len(resp) - ihl, addr, seq, rtt))
+                            print(
+                                '  {} bytes from {}: seq={} time={} ms'.format(
+                                    len(resp) - ihl, addr, seq, rtt
+                                )
+                            )
                         got = True
                         break
                 if not got and show:
-                    print("  seq={} timeout".format(seq))
+                    print('  seq={} timeout'.format(seq))
                 if seq < count:
                     time.sleep_ms(interval)
         finally:
@@ -487,16 +523,31 @@ class WiFiDiagnostics:
 
         recv = len(rtts)
         loss = round(100 * (sent - recv) / sent) if sent else 100
-        stats = {"host": host, "addr": addr, "sent": sent, "recv": recv,
-                 "loss_pct": loss}
+        stats = {
+            'host': host,
+            'addr': addr,
+            'sent': sent,
+            'recv': recv,
+            'loss_pct': loss,
+        }
         if rtts:
-            stats.update(min=min(rtts), max=max(rtts),
-                         avg=round(sum(rtts) / len(rtts), 1))
+            stats.update(
+                min=min(rtts), max=max(rtts), avg=round(sum(rtts) / len(rtts), 1)
+            )
         if show:
-            print("  --- {} stats: {}/{} received, {}% loss{}".format(
-                host, recv, sent, loss,
-                "" if not rtts else ", rtt min/avg/max = {}/{}/{} ms".format(
-                    stats["min"], stats["avg"], stats["max"])))
+            print(
+                '  --- {} stats: {}/{} received, {}% loss{}'.format(
+                    host,
+                    recv,
+                    sent,
+                    loss,
+                    ''
+                    if not rtts
+                    else ', rtt min/avg/max = {}/{}/{} ms'.format(
+                        stats['min'], stats['avg'], stats['max']
+                    ),
+                )
+            )
         return stats
 
     # -- RSSI monitor ----------------------------------------------------
@@ -504,25 +555,26 @@ class WiFiDiagnostics:
     def monitor(self, interval=1, count=None, show=True):
         """Live RSSI bar graph. Ctrl-C to stop; count=None runs until then."""
         if not self.ensure_connected():
-            print("auto-connect failed; cannot monitor.")
+            print('auto-connect failed; cannot monitor.')
             return
-        print("RSSI monitor (Ctrl-C to stop)")
+        print('RSSI monitor (Ctrl-C to stop)')
         i = 0
         try:
             while count is None or i < count:
                 try:
-                    rssi = self.sta.status("rssi")
+                    rssi = self.sta.status('rssi')
                 except (OSError, ValueError):
                     rssi = -100
                 label, pct = rssi_quality(rssi)
-                bar = "#" * (pct // 5)
-                print("{:>5} dBm  {:>3}%  {:<10} |{:<20}|".format(
-                    rssi, pct, label, bar))
+                bar = '#' * (pct // 5)
+                print(
+                    '{:>5} dBm  {:>3}%  {:<10} |{:<20}|'.format(rssi, pct, label, bar)
+                )
                 i += 1
                 if count is None or i < count:
                     time.sleep(interval)
         except KeyboardInterrupt:
-            print("monitor stopped.")
+            print('monitor stopped.')
 
     # -- power management ------------------------------------------------
 
@@ -536,61 +588,64 @@ class WiFiDiagnostics:
             try:
                 self.sta.config(pm=pm)
             except (OSError, ValueError) as e:
-                print("  set pm failed: {}".format(e))
+                print('  set pm failed: {}'.format(e))
         if txpower is not None:
             try:
                 self.sta.config(txpower=txpower)
             except (OSError, ValueError) as e:
-                print("  set txpower failed: {}".format(e))
+                print('  set txpower failed: {}'.format(e))
 
         info = {}
         try:
-            mode = self.sta.config("pm")
-            info["pm"] = mode
-            info["pm_name"] = PM_MODES.get(mode, "mode({})".format(mode))
+            mode = self.sta.config('pm')
+            info['pm'] = mode
+            info['pm_name'] = PM_MODES.get(mode, 'mode({})'.format(mode))
         except (OSError, ValueError):
-            info["pm"] = info["pm_name"] = "unavailable"
+            info['pm'] = info['pm_name'] = 'unavailable'
         try:
-            info["txpower"] = self.sta.config("txpower")
+            info['txpower'] = self.sta.config('txpower')
         except (OSError, ValueError):
-            info["txpower"] = "unavailable"
+            info['txpower'] = 'unavailable'
 
         if show:
-            print("  Power-save : {} ({})".format(info["pm_name"], info["pm"]))
-            print("  TX power   : {} dBm".format(info["txpower"]))
+            print('  Power-save : {} ({})'.format(info['pm_name'], info['pm']))
+            print('  TX power   : {} dBm'.format(info['txpower']))
         return info
 
     # -- full report -----------------------------------------------------
 
     def report(self):
-        print("=" * 78)
-        print("WiFi Diagnostics — ESP32-P4 / ESP32-C6 (MicroPython)")
-        print("=" * 78)
+        print('=' * 78)
+        print('WiFi Diagnostics — ESP32-P4 / ESP32-C6 (MicroPython)')
+        print('=' * 78)
         active = self.ensure_active()
-        print("Interface  : STA, active={}".format(active))
-        print("MAC        : {}".format(self.mac()))
-        print("Status     : {}".format(self.status_str()))
+        print('Interface  : STA, active={}'.format(active))
+        print('MAC        : {}'.format(self.mac()))
+        print('Status     : {}'.format(self.status_str()))
 
         nets = self.scan(show=True)
 
-        print("\nPower:")
+        print('\nPower:')
         self.power(show=True)
 
-        print("\nConnecting:")
+        print('\nConnecting:')
         if self.ensure_connected():
-            print("\nLink:")
+            print('\nLink:')
             self.link(show=True, scan_results=nets)
-            print("\nIP configuration:")
+            print('\nIP configuration:')
             self.ifconfig(show=True)
             self.connectivity(show=True)
-            print("\nPing:")
+            print('\nPing:')
             self.ping(show=True)
-            print("\nSpeed:")
+            print('\nSpeed:')
             self.speedtest(show=True)
         else:
-            print("\nCould not connect to {!r} — check credentials/signal.".format(
-                DEFAULT_SSID))
-        print("=" * 78)
+            print(
+                '\nCould not connect to {!r} — check credentials/signal.'.format(
+                    DEFAULT_SSID
+                )
+            )
+        print('=' * 78)
 
 
 # -- single entry point --------------------------------------------------
@@ -611,9 +666,9 @@ def _run(action):
     try:
         action()
     except KeyboardInterrupt:
-        print("\n(interrupted — back to menu)")
+        print('\n(interrupted — back to menu)')
     except Exception as e:  # noqa: BLE001 - menu must never die silently
-        print("\n!! error during action:")
+        print('\n!! error during action:')
         sys.print_exception(e)
 
 
@@ -629,31 +684,31 @@ def main(d=None):
         except (EOFError, KeyboardInterrupt):
             print()
             return d
-        print("> option {}".format(choice))  # immediate echo so it's never "dead"
-        if choice == "1":
+        print('> option {}'.format(choice))  # immediate echo so it's never "dead"
+        if choice == '1':
             _run(d.report)
-        elif choice == "2":
+        elif choice == '2':
             _run(d.scan)
-        elif choice == "3":
+        elif choice == '3':
             _run(d.connect)
-        elif choice == "4":
+        elif choice == '4':
             _run(d.link)
-        elif choice == "5":
-            n = input("samples (blank = until Ctrl-C): ").strip()
+        elif choice == '5':
+            n = input('samples (blank = until Ctrl-C): ').strip()
             _run(lambda: d.monitor(count=int(n) if n else None))
-        elif choice == "6":
-            host = input("host [8.8.8.8]: ").strip() or "8.8.8.8"
+        elif choice == '6':
+            host = input('host [8.8.8.8]: ').strip() or '8.8.8.8'
             _run(lambda: d.ping(host))
-        elif choice == "7":
+        elif choice == '7':
             _run(d.connectivity)
-        elif choice == "8":
+        elif choice == '8':
             _run(d.power)
-        elif choice in ("s", "S"):
+        elif choice in ('s', 'S'):
             _run(d.speedtest)
-        elif choice == "9":
+        elif choice == '9':
             _run(d.disconnect)
-            print("disconnected.")
-        elif choice == "0":
+            print('disconnected.')
+        elif choice == '0':
             return d
         else:
-            print("?")
+            print('?')
