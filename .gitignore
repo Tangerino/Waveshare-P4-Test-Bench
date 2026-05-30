@@ -1,0 +1,17 @@
+# Python / MicroPython
+__pycache__/
+*.pyc
+*.mpy
+
+# Editors / IDEs
+.idea/
+.vscode/
+
+# Claude Code
+.claude/
+
+# Credentials (use secrets_example.py as the template)
+secrets.py
+
+# OS
+.DS_Store
