@@ -12,6 +12,9 @@
 #   ./deploy.sh --sleep         # copy, then sleep info + light-sleep test
 #   ./deploy.sh --audio         # copy, then ES8311 probe + test tone
 #   ./deploy.sh --gpio          # copy, then GPIO test info (interactive for pins)
+#   ./deploy.sh --rs485         # copy, then RS485/Modbus scan (port 1)
+#   ./deploy.sh --rs232         # copy, then RS232/TTL loopback self-test
+#   ./deploy.sh --modem         # copy, then Quectel power-on + info
 #   PORT=/dev/tty.usbmodemXXX ./deploy.sh    # override the port
 #
 # Override the default port with the PORT env var, or edit it below.
@@ -21,7 +24,7 @@ set -euo pipefail
 PORT="${PORT:-/dev/tty.usbmodem5B610378241}"
 # Root files copied as-is, plus package directories copied recursively.
 FILES=(main.py netutils.py)
-PKGS=(wifi eth system sdcard i2c sleep audio gpio)
+PKGS=(wifi eth system sdcard i2c sleep audio gpio rs485 rs232 modem)
 
 usage() {
     cat <<EOF
@@ -39,6 +42,9 @@ Options:
   --sleep       Copy, then sleep info + light-sleep test (non-destructive).
   --audio       Copy, then ES8311 codec probe + a test tone.
   --gpio        Copy, then GPIO test summary (use the menu for live pins).
+  --rs485       Copy, then RS485 Modbus address scan (port 1).
+  --rs232       Copy, then RS232/TTL UART loopback self-test.
+  --modem       Copy, then Quectel modem power-on + info.
   --no-repl     Copy + reset, but don't open the REPL.
   -h, --help    Show this help and exit.
 
@@ -128,6 +134,21 @@ case "${1:-}" in
         echo ">> GPIO test summary (use the menu for live pin control)"
         exec mpremote connect "$PORT" exec \
             "from gpio import GPIODiagnostics; GPIODiagnostics().report()"
+        ;;
+    --rs485)
+        echo ">> RS485 Modbus address scan (port 1)"
+        exec mpremote connect "$PORT" exec \
+            "from rs485 import open_port; open_port(1).report(1)"
+        ;;
+    --rs232)
+        echo ">> RS232/TTL UART loopback self-test"
+        exec mpremote connect "$PORT" exec \
+            "from rs232 import RS232; RS232().report()"
+        ;;
+    --modem)
+        echo ">> Quectel modem power-on + info"
+        exec mpremote connect "$PORT" exec \
+            "from modem import QuectelModem; QuectelModem().report()"
         ;;
     --no-repl)
         echo ">> Resetting board"

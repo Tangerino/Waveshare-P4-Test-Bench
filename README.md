@@ -97,9 +97,13 @@ p4/
 ├── audio/             # ES8311 codec / speaker package
 │   ├── __init__.py    # re-exports AudioDiagnostics, main
 │   └── diag.py
-└── gpio/              # generic GPIO blink/read package
-    ├── __init__.py    # re-exports GPIODiagnostics, main
-    └── diag.py
+├── gpio/              # generic GPIO blink/read package
+│   ├── __init__.py    # re-exports GPIODiagnostics, main
+│   └── diag.py
+├── rs485/             # RS485 + Modbus-RTU (energy meters)
+├── rs232/             # plain TTL UART
+├── modem/             # Quectel EC200U/EG915U (AT + MQTT)
+└── docs/SERIAL.md     # serial ports: schematics, BOM, pin map
 ```
 
 New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
@@ -117,6 +121,9 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 6 | Sleep | `sleep/` | light/deep sleep + wake detection (RTC memory) | `--sleep` |
 | 7 | Audio | `audio/` | ES8311 codec ID probe + I2S tone on the speaker | `--audio` |
 | 8 | GPIO | `gpio/` | drive/blink/read any pin (no onboard user LED) | `--gpio` |
+| 9 | RS485 | `rs485/` | Modbus-RTU master (auto-DE, FC03/04, address scan) — needs a transceiver | `--rs485` |
+| 10 | RS232 | `rs232/` | TTL UART write/read + loopback self-test | `--rs232` |
+| 11 | Modem | `modem/` | Quectel EC200U/EG915U power-on, info, MQTT — needs the module | `--modem` |
 
 ## Deploy
 
@@ -132,6 +139,9 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --sleep   # upload, then sleep info + light-sleep test
 ./deploy.sh --audio   # upload, then ES8311 probe + a test tone
 ./deploy.sh --gpio    # upload, then GPIO test summary
+./deploy.sh --rs485   # upload, then RS485 Modbus address scan
+./deploy.sh --rs232   # upload, then RS232/TTL loopback self-test
+./deploy.sh --modem   # upload, then Quectel power-on + info
 ./deploy.sh --help    # all options
 ```
 
@@ -293,6 +303,33 @@ g = GPIODiagnostics()
 g.blink(2, count=10, period_ms=200)   # blink GPIO2
 g.high(2); g.low(2); g.read(2, pull='up')
 ```
+
+## Serial ports (RS485 / RS232 / Quectel modem)
+
+Adds four UARTs: **2× RS485** (Modbus-RTU energy meters), **1× RS232/TTL**, and
+**1× TTL → Quectel EC200U/EG915U** modem for MQTT. The ESP32-P4 has 5 hardware
+UARTs free (console is on USB-Serial-JTAG). **Wiring diagrams, BOM, and the pin
+map are in [`docs/SERIAL.md`](docs/SERIAL.md)** — read it first; the pin
+constants at the top of each `*/diag.py` are **placeholders to assign to free
+header GPIOs** on your board.
+
+```python
+from rs485 import open_port            # two Modbus meter buses
+m1 = open_port(1, baud=9600); m1.scan(); m1.read_holding(addr=1, reg=0, count=2)
+
+from rs232 import RS232                 # TTL device (loopback: jumper TX<->RX)
+p = RS232(); p.loopback(); p.write('hi\r\n'); print(p.read())
+
+from modem import QuectelModem          # LTE Cat-1 + built-in MQTT
+q = QuectelModem(); q.power_on(); q.wait_network()
+q.mqtt_publish_once('broker.host', 1883, 'p4-meter', 'meters/p4', '{"kwh":123}')
+```
+
+- **RS485** needs a 3.3 V transceiver (MAX3485/THVD1450, or isolated ADM2587E);
+  DE/RE → one GPIO; the driver handles direction timing.
+- **RS232** here is TTL 3.3 V (RX/TX/GND/VCC) → wires straight to a UART.
+- **Modem** needs its **own 3.4–4.2 V supply** (2 A bursts), a **1.8 V level
+  shifter** on the UART, and a PWRKEY pulse — details in `docs/SERIAL.md`.
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 
