@@ -91,6 +91,17 @@ sd.mount(); sd.info(); sd.speed(); sd.umount()
 The speed test writes/reads `/sd/_sdtest.bin` (default 512 KB) and removes it.
 Card must be inserted and FAT-formatted.
 
+> **Firmware note:** on the **generic** `ESP32P4` MicroPython build
+> (`v1.28.0`, machine = "Generic ESP32P4 module …"), the SD slot could **not**
+> be driven: `machine.SDCard` rejects `clk/cmd/d0..` kwargs (so native SDMMC
+> pins can't be remapped to the NANO's 43/44/39-42), and SPI mode over those
+> same pins returns `ESP_ERR_TIMEOUT` — the card never responds. `mount()`
+> tries SPI host 2/3 then native and reports this clearly. Getting the SD slot
+> working likely requires a **P4-NANO-specific MicroPython image** that
+> compiles the SDMMC pin map into the board definition (or an SD power-enable
+> line that the generic build doesn't drive). The other test areas (WiFi,
+> Ethernet, System, I2C, Sleep) work on the generic build.
+
 ## I2C bus scan
 
 Default pins (ESP32-P4-NANO): `SDA=GPIO7 SCL=GPIO8`.

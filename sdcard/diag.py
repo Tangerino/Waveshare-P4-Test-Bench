@@ -9,8 +9,13 @@
 #   D0  = GPIO39   D1  = GPIO40   D2 = GPIO41   D3 = GPIO42
 #
 # Pins are remappable via the P4 GPIO matrix; edit the constants below for
-# other board variants. The MicroPython machine.SDCard signature varies between
-# builds, so setup() tries a few forms and falls back to board defaults.
+# other board variants.
+#
+# NOTE: the generic ESP32-P4 MicroPython build rejects clk/cmd/d0.. kwargs, so
+# native SDMMC pins can't be remapped (and the firmware defaults don't match
+# this board). We therefore drive the card in SPI mode over the same physical
+# lines (SD cards support SPI): SCK<-CLK, MOSI<-CMD, MISO<-D0, CS<-D3.
+# mount() tries SPI host 2/3 (then native) until one mounts.
 #
 # Usage (REPL):
 #   from sdcard import SDCardDiagnostics, main
@@ -50,53 +55,66 @@ class SDCardDiagnostics:
 
     # -- setup / mount ---------------------------------------------------
 
-    def setup(self):
-        if self.sd is not None:
-            return self.sd
-        if not hasattr(machine, "SDCard"):
-            raise OSError("machine.SDCard not in this firmware build")
+    def _attempts(self):
+        """Construction strategies, tried in order until one MOUNTS.
+
+        This firmware's machine.SDCard rejects clk/cmd/d0.. kwargs, so SDMMC
+        pins can't be remapped. But SD cards also speak SPI on the same lines,
+        and SPI pins (sck/mosi/miso/cs) ARE configurable — so we drive the
+        card in SPI mode mapping CLK->SCK, CMD->MOSI, D0->MISO, D3->CS.
+        """
         from machine import Pin
-        attempts = (
-            ("4-bit", lambda: machine.SDCard(
-                slot=1, width=4,
-                clk=Pin(PIN_CLK), cmd=Pin(PIN_CMD),
-                d0=Pin(PIN_D0), d1=Pin(PIN_D1),
-                d2=Pin(PIN_D2), d3=Pin(PIN_D3))),
-            ("1-bit", lambda: machine.SDCard(
-                slot=1, width=1,
-                clk=Pin(PIN_CLK), cmd=Pin(PIN_CMD), d0=Pin(PIN_D0))),
-            ("slot defaults", lambda: machine.SDCard(slot=1)),
-            ("firmware defaults", lambda: machine.SDCard()),
+        spi = dict(sck=Pin(PIN_CLK), mosi=Pin(PIN_CMD),
+                   miso=Pin(PIN_D0), cs=Pin(PIN_D3))
+        return (
+            ("SPI host2 @20MHz (CLK/CMD/D0/D3)",
+             lambda: machine.SDCard(slot=2, freq=20000000, **spi)),
+            ("SPI host3 @20MHz",
+             lambda: machine.SDCard(slot=3, freq=20000000, **spi)),
+            ("SPI host2 @1MHz (slow/robust)",
+             lambda: machine.SDCard(slot=2, freq=1000000, **spi)),
+            ("SDMMC slot1 1-bit (firmware default pins)",
+             lambda: machine.SDCard(slot=1, width=1)),
         )
-        last = None
-        for label, make in attempts:
-            try:
-                self.sd = make()
-                print("  SDCard configured ({})".format(label))
-                return self.sd
-            except (TypeError, ValueError, OSError) as e:
-                last = e
-        raise OSError("could not construct SDCard: {}".format(last))
 
     def mount(self, show=True):
         if self.mounted:
             return True
-        sd = self.setup()
-        try:
-            os.mount(sd, MOUNT)
-            self.mounted = True
-            if show:
-                print("  Mounted at {}".format(MOUNT))
-            return True
-        except OSError as e:
-            # EPERM (1) usually means already mounted.
-            if e.args and e.args[0] == 1:
-                self.mounted = True
-                if show:
-                    print("  Already mounted at {}".format(MOUNT))
-                return True
-            print("  mount failed ({}) — card inserted/formatted FAT?".format(e))
+        if not hasattr(machine, "SDCard"):
+            print("  machine.SDCard not in this firmware build")
             return False
+        for label, make in self._attempts():
+            try:
+                sd = make()
+            except (TypeError, ValueError, OSError) as e:
+                print("    [{}] construct failed: {}".format(label, e))
+                continue
+            try:
+                os.mount(sd, MOUNT)
+            except OSError as e:
+                if e.args and e.args[0] == 1:  # EPERM = already mounted
+                    self.sd, self.mounted = sd, True
+                    if show:
+                        print("  Already mounted at {}".format(MOUNT))
+                    return True
+                print("    [{}] mount failed: {}".format(label, e))
+                try:
+                    sd.deinit()
+                except (AttributeError, OSError):
+                    pass
+                continue
+            self.sd, self.mounted = sd, True
+            if show:
+                print("  Mounted at {} via {}".format(MOUNT, label))
+            return True
+        print("  Could not mount with any config.")
+        print("  If the errors above are ESP_ERR_TIMEOUT, the card is not")
+        print("  reachable on GPIO 43/44/39-42 from this GENERIC MicroPython")
+        print("  build — neither native SDMMC (pins not remappable: clk/cmd/d0")
+        print("  kwargs are rejected) nor SPI mode reaches it. This needs a")
+        print("  P4-NANO-specific MicroPython image with the SD slot compiled")
+        print("  into the board definition. See README > microSD.")
+        return False
 
     def umount(self, show=True):
         try:
