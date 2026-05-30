@@ -107,14 +107,20 @@ machine.SDCard(slot=0, width=4, sck=Pin(43), cmd=Pin(44),
 > current MicroPython — see the [docs](https://docs.micropython.org/en/latest/library/machine.SDCard.html)
 > and [issue #18984](https://github.com/micropython/micropython/issues/18984)).
 >
-> The **tested build** (`v1.28.0`, machine = "Generic ESP32P4 module …")
-> **predates this** — it rejects those kwargs (`extra keyword arguments given`),
-> so it cannot enable the on-chip LDO that powers the card's IO. The result is
-> `ESP_ERR_TIMEOUT` (no card power), regardless of pins or SPI tricks. `mount()`
-> uses the correct config above and **detects the old-firmware case** with a
-> clear message. **Flash a newer MicroPython P4 image and the SD test works as
-> is** — no code change needed. The other test areas (WiFi, Ethernet, System,
-> I2C, Sleep) work on the current build.
+> The support landed in MicroPython master in three commits (March–April 2026):
+> - `a8ba8fab3` (2026-03-23) — SDMMC power control via internal LDO
+> - `e57e52218` (2026-03-27) — make default SDMMC slot configurable (slot 0)
+> - `dc44bdbac` (2026-04-02) — make the LDO channel configurable from Python (`ldo=`)
+>
+> The **tested build** (`v1.28.0`, built `2026-04-06`, machine = "Generic
+> ESP32P4 module …") was snapshotted from source **before `dc44bdbac`**, so it
+> rejects `ldo`/`cmd`/`data` (`extra keyword arguments given`) and can't enable
+> the LDO → `ESP_ERR_TIMEOUT`. `mount()` detects this and says so.
+>
+> **Fix:** flash MicroPython built from master at/after `dc44bdbac` (2026-04-02),
+> with ESP-IDF ≥ v5.3 (for `sd_pwr_ctrl_by_on_chip_ldo`). Then the SD test works
+> **unchanged**. The other test areas (WiFi, Ethernet, System, I2C, Sleep) work
+> on the current build.
 
 The pin/LDO values come from Waveshare's
 [`06_sdmmc` ESP-IDF example](https://github.com/waveshareteam/ESP32-P4-Platform/tree/main/examples/esp-idf/06_sdmmc)
