@@ -4,18 +4,16 @@
 #
 # Target: MicroPython v1.28.0, Generic ESP32P4 module.
 #
-# --- Verified pin map (Waveshare ESP32-P4-NANO, SDMMC 4-bit) -----------------
-#   CLK = GPIO43   CMD = GPIO44
-#   D0  = GPIO39   D1  = GPIO40   D2 = GPIO41   D3 = GPIO42
+# --- Config (matches Waveshare's ESP-IDF example, examples/esp-idf/06_sdmmc) -
+#   Native SDMMC slot 0 (SDIO 3.0): CLK=43 CMD=44 D0=39 D1=40 D2=41 D3=42
+#   SD card IO is powered by the P4 ON-CHIP LDO channel 4 — without enabling
+#   that LDO the card has no IO power and times out (ESP_ERR_TIMEOUT).
+# MicroPython SDMMC kwargs: sck(=CLK), cmd, data(tuple of D0..), ldo.
 #
-# Pins are remappable via the P4 GPIO matrix; edit the constants below for
-# other board variants.
-#
-# NOTE: the generic ESP32-P4 MicroPython build rejects clk/cmd/d0.. kwargs, so
-# native SDMMC pins can't be remapped (and the firmware defaults don't match
-# this board). We therefore drive the card in SPI mode over the same physical
-# lines (SD cards support SPI): SCK<-CLK, MOSI<-CMD, MISO<-D0, CS<-D3.
-# mount() tries SPI host 2/3 (then native) until one mounts.
+# FIRMWARE REQUIREMENT: needs a build whose machine.SDCard supports the P4
+# 'ldo'/'cmd'/'data' kwargs (current MicroPython). Older builds (incl. the
+# tested v1.28.0 "Generic ESP32P4") reject them ("extra keyword arguments")
+# and CANNOT drive the slot — mount() detects this and says so.
 #
 # Usage (REPL):
 #   from sdcard import SDCardDiagnostics, main
@@ -36,6 +34,7 @@ PIN_D0 = 39
 PIN_D1 = 40
 PIN_D2 = 41
 PIN_D3 = 42
+LDO_CHAN = 4           # P4 on-chip LDO channel powering SD IO (Waveshare ex.)
 
 
 def _fmt_bytes(n):
@@ -58,23 +57,22 @@ class SDCardDiagnostics:
     def _attempts(self):
         """Construction strategies, tried in order until one MOUNTS.
 
-        This firmware's machine.SDCard rejects clk/cmd/d0.. kwargs, so SDMMC
-        pins can't be remapped. But SD cards also speak SPI on the same lines,
-        and SPI pins (sck/mosi/miso/cs) ARE configurable — so we drive the
-        card in SPI mode mapping CLK->SCK, CMD->MOSI, D0->MISO, D3->CS.
+        Correct ESP32-P4 SDMMC config, matching Waveshare's own ESP-IDF
+        example (examples/esp-idf/06_sdmmc): native slot 0, CLK/CMD/D0-3 on
+        43/44/39-42, IO powered by the on-chip LDO channel 4. MicroPython's
+        SDMMC kwargs are sck(=CLK), cmd, data(tuple of D0..), ldo.
         """
         from machine import Pin
-        spi = dict(sck=Pin(PIN_CLK), mosi=Pin(PIN_CMD),
-                   miso=Pin(PIN_D0), cs=Pin(PIN_D3))
         return (
-            ("SPI host2 @20MHz (CLK/CMD/D0/D3)",
-             lambda: machine.SDCard(slot=2, freq=20000000, **spi)),
-            ("SPI host3 @20MHz",
-             lambda: machine.SDCard(slot=3, freq=20000000, **spi)),
-            ("SPI host2 @1MHz (slow/robust)",
-             lambda: machine.SDCard(slot=2, freq=1000000, **spi)),
-            ("SDMMC slot1 1-bit (firmware default pins)",
-             lambda: machine.SDCard(slot=1, width=1)),
+            ("slot0 w4 +LDO{} (Waveshare P4 config)".format(LDO_CHAN),
+             lambda: machine.SDCard(
+                 slot=0, width=4, sck=Pin(PIN_CLK), cmd=Pin(PIN_CMD),
+                 data=(Pin(PIN_D0), Pin(PIN_D1), Pin(PIN_D2), Pin(PIN_D3)),
+                 ldo=LDO_CHAN)),
+            ("slot0 w1 +LDO{}".format(LDO_CHAN),
+             lambda: machine.SDCard(
+                 slot=0, width=1, sck=Pin(PIN_CLK), cmd=Pin(PIN_CMD),
+                 data=(Pin(PIN_D0),), ldo=LDO_CHAN)),
         )
 
     def mount(self, show=True):
@@ -83,10 +81,19 @@ class SDCardDiagnostics:
         if not hasattr(machine, "SDCard"):
             print("  machine.SDCard not in this firmware build")
             return False
+        old_firmware = False
         for label, make in self._attempts():
             try:
                 sd = make()
-            except (TypeError, ValueError, OSError) as e:
+            except TypeError as e:
+                # Old machine.SDCard without P4 ldo/cmd/data kwargs.
+                if "extra keyword" in str(e):
+                    old_firmware = True
+                    print("    [{}] firmware too old (no ldo/cmd/data args)".format(label))
+                else:
+                    print("    [{}] construct failed: {}".format(label, e))
+                continue
+            except (ValueError, OSError) as e:
                 print("    [{}] construct failed: {}".format(label, e))
                 continue
             try:
@@ -107,13 +114,17 @@ class SDCardDiagnostics:
             if show:
                 print("  Mounted at {} via {}".format(MOUNT, label))
             return True
-        print("  Could not mount with any config.")
-        print("  If the errors above are ESP_ERR_TIMEOUT, the card is not")
-        print("  reachable on GPIO 43/44/39-42 from this GENERIC MicroPython")
-        print("  build — neither native SDMMC (pins not remappable: clk/cmd/d0")
-        print("  kwargs are rejected) nor SPI mode reaches it. This needs a")
-        print("  P4-NANO-specific MicroPython image with the SD slot compiled")
-        print("  into the board definition. See README > microSD.")
+
+        if old_firmware:
+            print("  SD UNSUPPORTED BY THIS FIRMWARE.")
+            print("  The pins/LDO are correct (match Waveshare's example), but this")
+            print("  MicroPython build's machine.SDCard lacks the ESP32-P4 'ldo'/")
+            print("  'cmd'/'data' kwargs needed to power & drive the slot. The card")
+            print("  IO is fed by the P4 on-chip LDO ch{} — with no API to enable".format(LDO_CHAN))
+            print("  it the card gets no power (ESP_ERR_TIMEOUT). Flash a newer")
+            print("  MicroPython P4 build with SD LDO support. See README > microSD.")
+        else:
+            print("  Could not mount the card with any config (see errors above).")
         return False
 
     def umount(self, show=True):

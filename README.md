@@ -91,16 +91,34 @@ sd.mount(); sd.info(); sd.speed(); sd.umount()
 The speed test writes/reads `/sd/_sdtest.bin` (default 512 KB) and removes it.
 Card must be inserted and FAT-formatted.
 
-> **Firmware note:** on the **generic** `ESP32P4` MicroPython build
-> (`v1.28.0`, machine = "Generic ESP32P4 module …"), the SD slot could **not**
-> be driven: `machine.SDCard` rejects `clk/cmd/d0..` kwargs (so native SDMMC
-> pins can't be remapped to the NANO's 43/44/39-42), and SPI mode over those
-> same pins returns `ESP_ERR_TIMEOUT` — the card never responds. `mount()`
-> tries SPI host 2/3 then native and reports this clearly. Getting the SD slot
-> working likely requires a **P4-NANO-specific MicroPython image** that
-> compiles the SDMMC pin map into the board definition (or an SD power-enable
-> line that the generic build doesn't drive). The other test areas (WiFi,
-> Ethernet, System, I2C, Sleep) work on the generic build.
+### Correct config (per Waveshare's ESP-IDF example)
+
+Native SDMMC **slot 0** (SDIO 3.0), CLK=43 CMD=44 D0-3=39-42, and — crucially —
+the SD card IO is powered by the P4's **on-chip LDO channel 4**. MicroPython's
+SDMMC kwargs are `sck`(=CLK), `cmd`, `data` (tuple of D0..), and `ldo`:
+
+```python
+machine.SDCard(slot=0, width=4, sck=Pin(43), cmd=Pin(44),
+               data=(Pin(39), Pin(40), Pin(41), Pin(42)), ldo=4)
+```
+
+> **Firmware requirement:** the SD slot needs a MicroPython build whose
+> `machine.SDCard` supports the ESP32-P4 `ldo`/`cmd`/`data` kwargs (present in
+> current MicroPython — see the [docs](https://docs.micropython.org/en/latest/library/machine.SDCard.html)
+> and [issue #18984](https://github.com/micropython/micropython/issues/18984)).
+>
+> The **tested build** (`v1.28.0`, machine = "Generic ESP32P4 module …")
+> **predates this** — it rejects those kwargs (`extra keyword arguments given`),
+> so it cannot enable the on-chip LDO that powers the card's IO. The result is
+> `ESP_ERR_TIMEOUT` (no card power), regardless of pins or SPI tricks. `mount()`
+> uses the correct config above and **detects the old-firmware case** with a
+> clear message. **Flash a newer MicroPython P4 image and the SD test works as
+> is** — no code change needed. The other test areas (WiFi, Ethernet, System,
+> I2C, Sleep) work on the current build.
+
+The pin/LDO values come from Waveshare's
+[`06_sdmmc` ESP-IDF example](https://github.com/waveshareteam/ESP32-P4-Platform/tree/main/examples/esp-idf/06_sdmmc)
+(`Kconfig.projbuild`: P4 CLK=43/CMD=44/D0-3=39-42, `SD_PWR_CTRL_LDO_IO_ID=4`).
 
 ## I2C bus scan
 
