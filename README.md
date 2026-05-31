@@ -102,7 +102,8 @@ p4/
 │   └── diag.py
 ├── serial/            # raw 4-UART loopback test (HW, no protocol)
 ├── ble/               # BLE probe / scan / advertise (via C6, hosted)
-└── docs/SERIAL.md     # serial port UART test: pins, jumpers, how to run
+├── docs/SERIAL.md     # serial port UART test: pins, jumpers, how to run
+└── docs/P4-MIGRATION.md  # 4 UARTs + USB-to-RS485 conflict assessment (WROOM→P4)
 ```
 
 New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
