@@ -348,6 +348,32 @@ b.advertise('P4-TEST')    # advertise a beacon (find it in a phone BLE app)
 
 One-shot: `./deploy.sh --ble`.
 
+## USB / USB host
+
+The P4 has **two USB interfaces**:
+
+| Interface | Pins | Role |
+|-----------|------|------|
+| USB-Serial-JTAG (Full-Speed) | **GPIO24 / 25** (fixed) | console / flashing / the REPL link |
+| USB 2.0 OTG **High-Speed** | **dedicated USB D+/D- pads** (not the GPIO matrix) | OTG host/device port |
+
+- **No GPIO/UART conflict:** the JTAG console pins (24/25) are reserved — the
+  serial test deliberately avoids them (UART3 is on 32/33) — and the OTG-HS data
+  lines aren't GPIO at all. Console + USB-OTG + the 4 UARTs all coexist.
+- **USB host is not usable from MicroPython** on the P4 (`machine.USBHost` doesn't
+  exist; `machine.USBDevice` doesn't cover the P4). The OTG-HS host port (e.g. to
+  read USB-serial / USB-to-RS485 dongles, a flash drive, or a keyboard) needs
+  **ESP-IDF (C)** or **Arduino-ESP32** (`EspUsbHost`). ESP-IDF's
+  `usb_host_cdc_acm` + VCP drivers (FTDI/CH34x/CP210x) and a USB hub handle
+  multiple USB-serial adapters at once.
+- **VBUS:** the P4 doesn't internally source 5 V — bus-powered USB devices need an
+  external 5 V→VBUS path on the host port.
+
+There is therefore **no MicroPython "USB host" test** in this bench; the
+USB-Serial-JTAG port is implicitly proven by `mpremote` connecting over it. Full
+design analysis (4 UARTs + USB-to-RS485, conflicts, VBUS, firmware gate) is in
+[`docs/P4-MIGRATION.md`](docs/P4-MIGRATION.md).
+
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 
 Verified against the Waveshare wiki and ESPHome board config. Only the
