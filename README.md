@@ -438,6 +438,11 @@ d.disconnect()
 
 ## Resources
 
+**This repo**
+- [`docs/SERIAL.md`](docs/SERIAL.md) — serial-port UART test: pins, jumpers, how to run
+- [`docs/P4-MIGRATION.md`](docs/P4-MIGRATION.md) — 4 UARTs + USB-to-RS485 conflict assessment (WROOM → P4)
+- [`firmware/BUILD.md`](firmware/BUILD.md) — flashing / building a P4 image with microSD support
+
 **Board (Waveshare ESP32-P4-NANO)**
 - [ESP32-P4-NANO wiki](https://www.waveshare.com/wiki/ESP32-P4-Nano-StartPage) — pinout, Ethernet/SD/I2C details
 - [ESP32-P4-NANO schematic (PDF)](https://files.waveshare.com/wiki/ESP32-P4-NANO/ESP32-P4-NANO-schematic.pdf) — authoritative pin source
