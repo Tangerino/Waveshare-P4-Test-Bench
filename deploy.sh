@@ -87,19 +87,26 @@ for p in "${PKGS[@]}"; do
 done
 
 echo ">> Uploading ${FILES[*]} + ${PKGS[*]}/ to $PORT"
-if ! mpremote connect "$PORT" "${cp_args[@]}"; then
+# Capture mpremote's output so its Python traceback never reaches the user.
+# On success show the cp progress; on failure show only a clean one-line reason.
+if out=$(mpremote connect "$PORT" "${cp_args[@]}" 2>&1); then
+    [ -n "$out" ] && printf '%s\n' "$out"
+    echo ">> Upload OK"
+else
+    reason=$(printf '%s\n' "$out" \
+        | grep -ioE 'could not enter raw repl|no device|permission denied|[A-Za-z]*Error[^"]*' \
+        | tail -1)
     echo >&2
-    echo "!! Upload failed — 'could not enter raw repl' means mpremote couldn't" >&2
-    echo "   interrupt the board to upload. Fixes (in order):" >&2
+    echo "!! Upload failed: ${reason:-could not access the board on $PORT}" >&2
+    echo "   The board is busy — mpremote couldn't interrupt it to upload. Try:" >&2
     echo "     1. Close any open REPL / serial monitor holding $PORT." >&2
-    echo "     2. In the board's menu, choose 0) Exit until you reach >>> ," >&2
-    echo "        or press Ctrl-C, then re-run ./deploy.sh." >&2
-    echo "     3. Unplug/replug the board, then ./deploy.sh." >&2
-    echo "   (Once this build is on the board, Ctrl-C propagates to the REPL and" >&2
-    echo "    mpremote can always interrupt it — so this is a one-time step.)" >&2
+    echo "     2. Tap the board's RST/EN button (or unplug/replug), then re-run." >&2
+    echo "     3. Or: mpremote connect $PORT repl  ->  press 0 to reach >>> " >&2
+    echo "        ->  Ctrl-]  ->  ./deploy.sh" >&2
+    echo "   (One-time only: once this build is on the board, Ctrl-C drops to the" >&2
+    echo "    REPL, so future deploys interrupt the menu automatically.)" >&2
     exit 1
 fi
-echo ">> Upload OK"
 
 case "${1:-}" in
     --wifi|--scan)
