@@ -15,11 +15,11 @@
 #   * PWRKEY: pulse to power the module on. Polarity depends on your drive
 #     circuit (usually an NPN transistor inverts it) -> set `pwrkey_active`.
 #
-# !! ASSIGN/VERIFY these pins to FREE header GPIOs on YOUR board. !!
+# Pins confirmed against the board's GPIO-header pinout (free header GPIOs).
 #
 # Usage (REPL):
 #   from modem import QuectelModem
-#   q = QuectelModem(uart=4, tx=36, rx=37, pwrkey=38, pwr_en=45)
+#   q = QuectelModem(uart=4, tx=26, rx=27, pwrkey=32, pwr_en=33)
 #   q.power_on(); q.info(); q.wait_network()
 #   q.mqtt_publish_once('broker.host', 1883, 'p4-meter',
 #                       'meters/p4', '{"kwh": 123}')
@@ -29,10 +29,10 @@ import time
 import machine
 
 UART_ID = 4
-PIN_TX = 36
-PIN_RX = 37
-PIN_PWRKEY = 38
-PIN_PWR_EN = 45  # optional: enables the modem's 3.8 V buck (set None to skip)
+PIN_TX = 26  # header GPIO26
+PIN_RX = 27  # header GPIO27
+PIN_PWRKEY = 32  # header GPIO32
+PIN_PWR_EN = 33  # header GPIO33 (modem 3.8 V buck enable; set None to skip)
 DEFAULT_BAUD = 115200
 
 

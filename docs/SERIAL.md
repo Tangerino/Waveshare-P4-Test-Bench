@@ -6,23 +6,29 @@ Quectel **EC200U / EG915U** (LTE Cat-1) modem for MQTT.
 The ESP32-P4 has **5 hardware UARTs**; the console is on USB-Serial-JTAG, so
 **UART1–UART5 are free**, and the GPIO matrix routes TX/RX to any free pin.
 
-## Pin map — ASSIGN & VERIFY first
+## Pin map (confirmed against the GPIO-header pinout)
 
-These are **placeholders** in the driver configs. Pick **free header GPIOs**
-on your board (not used by Ethernet 28-35/49-52, SD 39-44, audio/C6 9-19/53-54,
-I2C 7-8), confirm against the NANO schematic, then edit the constants at the
-top of each `*/diag.py`.
+All pins below are **free GPIOs broken out to the 2× headers** (the green pins
+in Waveshare's pin-definition diagram), avoiding I2C `7/8`, the pre-wired UART
+`37/38`, audio amp `53`, and C6 reset `54`. Edit the constants at the top of
+each `*/diag.py` for other board revisions.
 
 | Port | UART | TX | RX | Ctrl | Driver constants |
 |------|-----:|---:|---:|------|------------------|
-| RS485 #1 | 1 | 20 | 21 | — (auto-direction) | `rs485/diag.py` `PORTS[1]` |
-| RS485 #2 | 2 | 23 | 24 | — (auto-direction) | `rs485/diag.py` `PORTS[2]` |
-| RS232/TTL | 3 | 32 | 33 | — | `rs232/diag.py` |
-| Modem | 4 | 36 | 37 | PWRKEY=38, PWR_EN=45 | `modem/diag.py` |
+| RS485 #1 | 1 | **GPIO20** | **GPIO21** | — (auto-direction) | `rs485/diag.py` `PORTS[1]` |
+| RS485 #2 | 2 | **GPIO23** | **GPIO22** | — (auto-direction) | `rs485/diag.py` `PORTS[2]` |
+| RS232/TTL | 3 | **GPIO24** | **GPIO25** | — | `rs232/diag.py` |
+| Modem | 4 | **GPIO26** | **GPIO27** | PWRKEY=**GPIO32**, PWR_EN=**GPIO33** | `modem/diag.py` |
 
-Budget: 8 UART + ~2 modem-control ≈ **10 GPIOs** (no DE pins — auto-direction
-transceivers). Use the repo's `gpio` test to confirm a candidate pin toggles
-freely before committing to it.
+Budget: 8 UART + 2 modem-control = **10 header GPIOs** (no DE pins —
+auto-direction transceivers). Other free header GPIOs left for expansion:
+`36, 45, 46, 47, 48` (plus low pins `1–6`, but treat those as possible
+strapping). The header also exposes a **ready-made UART on GPIO37(TX)/38(RX)**
+and `5V`/`3V3`/`GND` rails.
+
+> The pinout diagram silkscreen reads *ESP32-P4-Module-DEV-KIT*; confirm it
+> matches your board revision. Use the repo's `gpio` test (`g.blink(n)`) to
+> sanity-check a header pin before wiring.
 
 ## RS485 ×2 (Modbus-RTU meters) — auto-direction (DE-free)
 
@@ -41,7 +47,7 @@ GND ──────────────────► GND
         one bias network per bus: ~680 Ω A→3V3 and ~680 Ω B→GND
         add TVS (e.g. SM712) across A/B for field wiring
 ```
-No direction pin to wire or time — repeat for RS485 #2 on UART2 / pins 23,24.
+No direction pin to wire or time — repeat for RS485 #2 on UART2 / pins 23,22.
 
 **Echo note:** many auto-direction parts keep RX enabled during TX, so you read
 back your own transmitted bytes. The `Modbus` driver is **echo-tolerant** — it
@@ -58,8 +64,8 @@ Your 4-pin **RX / TX / GND / VCC** is **TTL 3.3 V** (true RS232 has no VCC
 pin), so wire straight to UART3 — **no transceiver**:
 
 ```
-UART3 TX (32) ─────────► RX (device)
-UART3 RX (33) ◄───────── TX (device)
+UART3 TX (24) ─────────► RX (device)
+UART3 RX (25) ◄───────── TX (device)
 3V3 ──────────────────► VCC          GND ─► GND
 ```
 (If you ever attach a real ±12 V RS232 device, drop a **MAX3232** + 5×0.1 µF
@@ -73,10 +79,10 @@ Two things will bite you if ignored: **power** and **IO voltage**.
                 +3.8 V  (dedicated buck, ~2 A burst; bulk 1000 µF + 100 µF)
                   │ VBAT
 ESP32-P4          ▼
-UART4 TX (36) ─►[level-shift 3.3↔1.8 V]─► RXD     EC200U/EG915U VIO = 1.8 V
-UART4 RX (37) ◄─[level-shift]◄──────────  TXD     → TXS0108E (unless your
-GPIO PWRKEY (38) ─►(pulse, via transistor)─► PWRKEY   breakout already shifts)
-GPIO PWR_EN (45) ─►(enable the 3.8 V buck)
+UART4 TX (26) ─►[level-shift 3.3↔1.8 V]─► RXD     EC200U/EG915U VIO = 1.8 V
+UART4 RX (27) ◄─[level-shift]◄──────────  TXD     → TXS0108E (unless your
+GPIO PWRKEY (32) ─►(pulse, via transistor)─► PWRKEY   breakout already shifts)
+GPIO PWR_EN (33) ─►(enable the 3.8 V buck)
 modem NET/STATUS ─►(optional input)        GND common to everything
 ```
 

@@ -15,8 +15,8 @@
 # the received bytes for the valid response frame (matching slave/func + CRC),
 # so the echo is skipped automatically — works with or without DE.
 #
-# !! ASSIGN/VERIFY these pins to FREE header GPIOs on YOUR board (not used by
-#    Ethernet/SD/audio/C6/I2C). Defaults are placeholders. !!
+# Pins below are confirmed against the board's GPIO-header pinout (free green
+# pins, not used by Ethernet/SD/audio/C6/I2C). Edit for other board revisions.
 #
 # Usage (REPL):
 #   from rs485 import Modbus
@@ -29,11 +29,11 @@ import time
 
 import machine
 
-# --- default pin map (PLACEHOLDERS — verify free header GPIOs) ---------------
+# --- pin map (confirmed free header GPIOs, ESP32-P4 module DEV-KIT/NANO) ------
 # Auto-direction transceivers: no DE pin. (Add 'de': <gpio> for manual parts.)
 PORTS = {
-    1: {'uart': 1, 'tx': 20, 'rx': 21},  # RS485 #1
-    2: {'uart': 2, 'tx': 23, 'rx': 24},  # RS485 #2
+    1: {'uart': 1, 'tx': 20, 'rx': 21},  # RS485 #1  (header GPIO20/21)
+    2: {'uart': 2, 'tx': 23, 'rx': 22},  # RS485 #2  (header GPIO23/22)
 }
 DEFAULT_BAUD = 9600
 

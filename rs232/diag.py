@@ -9,11 +9,11 @@
 # (If it were TRUE +-12 V RS232, you'd add a MAX3232 between the UART and the
 # connector; nothing changes in this driver.)
 #
-# !! ASSIGN/VERIFY these pins to FREE header GPIOs on YOUR board. !!
+# Pins confirmed against the board's GPIO-header pinout (free header GPIOs).
 #
 # Usage (REPL):
 #   from rs232 import RS232
-#   p = RS232(uart=3, tx=32, rx=33, baud=115200)
+#   p = RS232(uart=3, tx=24, rx=25, baud=115200)
 #   p.write('hello\r\n'); print(p.read())
 #   p.loopback()        # jumper TX<->RX to self-test
 
@@ -22,8 +22,8 @@ import time
 import machine
 
 UART_ID = 3
-PIN_TX = 32
-PIN_RX = 33
+PIN_TX = 24  # header GPIO24
+PIN_RX = 25  # header GPIO25
 DEFAULT_BAUD = 115200
 
 
