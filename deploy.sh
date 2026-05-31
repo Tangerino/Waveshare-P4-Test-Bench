@@ -24,6 +24,27 @@ PORT="${PORT:-/dev/tty.usbmodem5B610378241}"
 FILES=(main.py netutils.py)
 PKGS=(wifi eth system sdcard i2c sleep audio gpio serial)
 
+# Best-effort: nudge the board out of any running menu/loop to the REPL so the
+# upload can always grab it — send a few Ctrl-C straight to the serial port
+# (no pyserial needed). The P4 console is native USB-CDC, so writing to the
+# port doesn't toggle a reset line. No-op if the port is held by another
+# program. macOS uses 'stty -f'; Linux uses 'stty -F'.
+wake_repl() {
+    { stty -f "$PORT" 115200 clocal 2>/dev/null \
+        || stty -F "$PORT" 115200 clocal 2>/dev/null; } || true
+    # Hold the port open (fd 3) for the whole burst so tty settings persist.
+    # Runs in a subshell so a failed open can't exit deploy.sh.
+    (
+        exec 3>"$PORT" 2>/dev/null || exit 0
+        for _ in 1 2 3 4; do
+            printf '\r\003' >&3   # Ctrl-C -> drop a running menu/loop to the REPL
+            sleep 0.1
+        done
+        printf '\r\002\r' >&3     # Ctrl-B: leave raw mode if we landed in it
+    ) 2>/dev/null || true
+    sleep 0.3
+}
+
 usage() {
     cat <<EOF
 deploy.sh — upload the ESP32-P4 hardware tests and (re)start.
@@ -86,6 +107,8 @@ for p in "${PKGS[@]}"; do
     add fs cp -r "$p" ":"   # recursive: creates :$p/ on the board
 done
 
+echo ">> Nudging board to the REPL (Ctrl-C) ..."
+wake_repl
 echo ">> Uploading ${FILES[*]} + ${PKGS[*]}/ to $PORT"
 if ! mpremote connect "$PORT" "${cp_args[@]}"; then
     echo >&2
