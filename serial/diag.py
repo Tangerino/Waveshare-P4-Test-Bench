@@ -1,19 +1,20 @@
 # serial/diag.py
 #
-# Raw UART loopback test for all 4 serial ports — pure hardware, no protocol.
+# Raw UART loopback test for all 5 UARTs — pure hardware, no protocol.
 # Jumper TX<->RX on each port, then this writes a pattern and verifies it comes
-# back. Runs all 4 ports concurrently and sweeps baud to find the max that
+# back. Runs all 5 ports concurrently and sweeps baud to find the max that
 # passes per port.
 #
 # Target: MicroPython on ESP32-P4 (ESP32_GENERIC_P4-C6_WIFI).
 #
 # Jumper these header pins (TX<->RX) before testing:
 #   RS485#1 GPIO20<->21   RS485#2 GPIO23<->22
-#   RS232   GPIO24<->25   Modem   GPIO26<->27
+#   RS232   GPIO24<->25   Modem   GPIO26<->27   UART0 GPIO37<->38
 #
 # Usage (REPL):
-#   from serial import echo, max_speed, report
-#   echo(921600)     # all 4 ports, one baud
+#   from serial import echo, max_speed, report, probe
+#   probe()          # which UART controllers (0..5) this firmware exposes
+#   echo(921600)     # all 5 ports, one baud
 #   max_speed()      # sweep -> highest passing baud per port
 #   report()
 
@@ -21,13 +22,19 @@ import time
 
 import machine
 
-# (label, uart_id, tx, rx) — the 4 ports, on confirmed free header GPIOs.
+# (label, uart_id, tx, rx) — the 5 ports, on confirmed free header GPIOs.
+# UART0 (GPIO37/38) is the board's boot/console UART; usable here because the
+# REPL is on USB-Serial-JTAG, but it may print boot logs — see probe().
 PORTS = (
     ('RS485#1', 1, 20, 21),
     ('RS485#2', 2, 23, 22),
     ('RS232  ', 3, 24, 25),
     ('Modem  ', 4, 26, 27),
+    ('UART0  ', 0, 37, 38),  # spare header UART (TXD/RXD pins)
 )
+
+# Scratch pins used by probe() to test controller availability.
+_SCRATCH = (47, 48)
 
 # Baud ladder for the max-speed sweep (low -> high).
 BAUDS = (115200, 460800, 921600, 1500000, 2000000, 3000000, 4000000, 5000000)
@@ -62,8 +69,37 @@ def _read_exact(u, n, timeout_ms):
     return buf
 
 
+def probe(show=True):
+    """Report which UART controller ids (0..5) this firmware can open.
+
+    Uses scratch pins, so it needs no jumpers. UART0 is the boot/console UART;
+    opening it is fine when the REPL is on USB-Serial-JTAG.
+    """
+    if show:
+        print('  Probing UART controllers (scratch pins {}/{})...'.format(*_SCRATCH))
+    avail = []
+    for uid in range(6):
+        try:
+            u = machine.UART(
+                uid,
+                baudrate=115200,
+                tx=machine.Pin(_SCRATCH[0]),
+                rx=machine.Pin(_SCRATCH[1]),
+            )
+            u.deinit()
+            avail.append(uid)
+            if show:
+                print('    UART{}: available'.format(uid))
+        except Exception as e:  # noqa: BLE001
+            if show:
+                print('    UART{}: no ({})'.format(uid, e))
+    if show:
+        print('  -> {} UART controller(s): {}'.format(len(avail), avail))
+    return avail
+
+
 def echo(baud=921600, total=4096, show=True):
-    """Loop back `total` bytes through all 4 ports concurrently at `baud`.
+    """Loop back `total` bytes through all 5 ports concurrently at `baud`.
 
     Returns {label: {'ok_bytes', 'errors', 'opened', 'kbps', 'pass'}}.
     """
@@ -148,9 +184,11 @@ def max_speed(show=True):
 
 def report():
     print('=' * 78)
-    print('Serial loopback — 4 UARTs (jumper TX<->RX on each port)')
+    print('Serial loopback — 5 UARTs (jumper TX<->RX on each port)')
     print('=' * 78)
-    print('Pins: RS485#1 20<->21  RS485#2 23<->22  RS232 24<->25  Modem 26<->27')
+    print('Pins: 20<->21  23<->22  24<->25  26<->27  37<->38')
+    print('\nUART controllers:')
+    probe(show=True)
     print('\nConcurrent echo @ 921600:')
     echo(921600, show=True)
     print('\nPer-port maximum baud:')
@@ -166,9 +204,10 @@ def report():
 # -- interactive menu ----------------------------------------------------
 
 MENU = """
---- Serial loopback (ESP32-P4, 4 UARTs) ---
+--- Serial loopback (ESP32-P4, 5 UARTs) ---
  1) Full report          3) Echo at custom baud
- 2) Max-speed sweep       0) Exit
+ 2) Max-speed sweep       4) Probe UART controllers
+ 0) Exit
 Choose: """
 
 
@@ -189,6 +228,8 @@ def main(_=None):
         elif choice == '3':
             b = int(input('baud [921600]: ').strip() or '921600')
             netutils.run_action(lambda: echo(b))
+        elif choice == '4':
+            netutils.run_action(probe)
         elif choice == '0':
             return
         else:

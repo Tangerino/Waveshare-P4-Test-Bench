@@ -131,14 +131,21 @@ Before soldering any transceiver, verify the raw UART pins: jumper **TX ↔ RX**
 on each port and run the `serial` test (`./deploy.sh --serial`, or menu 12). It
 loops a pattern through all 4 ports at once and sweeps for the max baud.
 
-**4 jumpers to fit** (female-female Dupont wires):
+**5 jumpers to fit** (female-female Dupont wires) — the 4 protocol ports plus
+the spare UART0 on GPIO37/38:
 
-| Jumper | Port | Connect | Where on the header |
-|--------|------|---------|---------------------|
-| JP1 | RS485 #1 | GPIO20 ↔ GPIO21 | both **left** column, adjacent rows — easiest |
-| JP2 | RS485 #2 | GPIO23 ↔ GPIO22 | GPIO23 left (upper) ↔ GPIO22 right — short wire |
-| JP3 | RS232 | GPIO24 ↔ GPIO25 | **same row**, straight across left↔right |
-| JP4 | Modem | GPIO26 ↔ GPIO27 | GPIO26 left ↔ GPIO27 right (lower) — wire |
+| Jumper | Port (UART) | Connect | Where on the header |
+|--------|-------------|---------|---------------------|
+| JP1 | RS485 #1 (UART1) | GPIO20 ↔ GPIO21 | both **left** column, adjacent rows — easiest |
+| JP2 | RS485 #2 (UART2) | GPIO23 ↔ GPIO22 | GPIO23 left (upper) ↔ GPIO22 right — short wire |
+| JP3 | RS232 (UART3) | GPIO24 ↔ GPIO25 | **same row**, straight across left↔right |
+| JP4 | Modem (UART4) | GPIO26 ↔ GPIO27 | GPIO26 left ↔ GPIO27 right (lower) — wire |
+| JP5 | Spare (UART0) | GPIO37 ↔ GPIO38 | both **right** column, adjacent rows (TXD/RXD) |
+
+> The ESP32-P4 has **5 UART controllers (UART0–4)**. We use UART1–4 for the
+> four protocol ports; UART0 (the boot/console UART) is free here because the
+> REPL runs on USB-Serial-JTAG. Run `probe()` (menu 4) to confirm which
+> controllers this firmware exposes before relying on the 5th.
 
 Header pinout for reference (Waveshare pin-definition diagram), with the test
 pins marked `◄JPn`:
@@ -148,8 +155,8 @@ pins marked `◄JPn`:
    1   3V3                     5V
    2   GPIO7 (SDA / I2C)       5V
    3   GPIO8 (SCL / I2C)       GND
-   4   GPIO23  ◄JP2            GPIO37 (TXD)      ← spare ready-made UART
-   5   GND                     GPIO38 (RXD)      ←   (GPIO37/38)
+   4   GPIO23  ◄JP2            GPIO37  ◄JP5 (TXD, UART0)
+   5   GND                     GPIO38  ◄JP5 (RXD, UART0)
    6   GPIO21  ◄JP1            GPIO22  ◄JP2
    7   GPIO20  ◄JP1            GND
    8   GPIO6                   GPIO5
@@ -170,10 +177,10 @@ pins marked `◄JPn`:
 Notes:
 - **JP1** (GPIO20↔21) sits on two adjacent left-column pins — the simplest jumper.
 - **JP3** (GPIO24↔25) is one row, straight across the two columns.
+- **JP5** (GPIO37↔38) is two adjacent right-column pins — easy.
 - **JP2** and **JP4** span columns/rows → use a short jumper wire.
 - A port that shows `FAIL` in the test simply has its jumper missing; remove the
   jumpers afterwards before wiring the real transceivers.
-- `GPIO37/38` are a pre-broken-out UART if you want a 5th port without these pins.
 
 ## Bill of materials (typical)
 
