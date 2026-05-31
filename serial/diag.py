@@ -17,8 +17,8 @@
 #
 # Usage (REPL):
 #   from serial import echo, max_speed, report, probe, monitor
-#   probe()          # which UART controllers (0..5) this firmware exposes
-#   echo(921600)     # all 4 ports, one baud
+#   probe()          # which UART controllers (1..4) this firmware exposes
+#   echo(921600)     # all jumpered ports, one baud (per-port KB/s)
 #   max_speed()      # sweep -> highest passing baud per port
 #   monitor()        # live ON/off-line per port as you fit/remove jumpers
 #   report()
@@ -40,8 +40,8 @@ PORTS = (
 # Scratch pins used by probe() to test controller availability.
 _SCRATCH = (47, 48)
 
-# Baud ladder for the max-speed sweep (low -> high).
-BAUDS = (115200, 460800, 921600, 1500000, 2000000, 3000000, 4000000, 5000000)
+# Baud ladder for the max-speed sweep (low -> high). Kept short for speed.
+BAUDS = (115200, 460800, 921600, 2000000, 3000000, 5000000)
 
 CHUNK = 64  # bytes per round (<= rxbuf to avoid overflow before readback)
 _PATTERN = bytes(((i * 7 + 13) & 0xFF) for i in range(CHUNK))
@@ -74,15 +74,15 @@ def _read_exact(u, n, timeout_ms):
 
 
 def probe(show=True):
-    """Report which UART controller ids (0..5) this firmware can open.
+    """Report which UART controllers (1..4) this firmware can open.
 
-    Uses scratch pins, so it needs no jumpers. UART0 is the boot/console UART;
-    opening it is fine when the REPL is on USB-Serial-JTAG.
+    Uses scratch pins, so it needs no jumpers. UART0 (console) and UART5 are not
+    probed — opening them logs noisy ESP-IDF errors and they aren't used here.
     """
     if show:
-        print('  Probing UART controllers (scratch pins {}/{})...'.format(*_SCRATCH))
+        print('  Probing UART1..4 (scratch pins {}/{})...'.format(*_SCRATCH))
     avail = []
-    for uid in range(6):
+    for uid in (1, 2, 3, 4):
         try:
             u = machine.UART(
                 uid,
@@ -93,96 +93,107 @@ def probe(show=True):
             u.deinit()
             avail.append(uid)
             if show:
-                note = '  (reserved — console, not used)' if uid == 0 else ''
-                print('    UART{}: available{}'.format(uid, note))
+                print('    UART{}: available'.format(uid))
         except Exception as e:  # noqa: BLE001
             if show:
                 print('    UART{}: no ({})'.format(uid, e))
     if show:
-        print('  -> {} UART controller(s): {}'.format(len(avail), avail))
+        print('    UART0: reserved (console, not tested)')
+        print('  -> usable: {}'.format(avail))
     return avail
 
 
-def echo(baud=921600, total=4096, show=True):
-    """Loop back `total` bytes through all 4 ports concurrently at `baud`.
+def echo(baud=921600, total=2048, show=True):
+    """Loop back bytes through the jumpered ports concurrently at `baud`.
 
-    Returns {label: {'ok_bytes', 'errors', 'opened', 'kbps', 'pass'}}.
+    Ports that fail the FIRST round (no jumper) are dropped, so a dead port
+    costs one round instead of all of them. Per-port KB/s is measured from each
+    port's own receive time, so one port's timeout doesn't skew another's rate.
     """
     if show:
-        print('  Echo all ports @ {} baud ({} bytes each)...'.format(baud, total))
-    chans = []
+        print('  Echo @ {} baud...'.format(baud))
+    chans = []  # [label, uart_or_None, active]
     res = {}
     for label, uid, tx, rx in PORTS:
         res[label] = {
-            'ok_bytes': 0,
-            'errors': 0,
             'opened': False,
-            'kbps': 0,
             'pass': False,
+            'ok': 0,
+            'err': 0,
+            'kbps': 0,
+            '_us': 0,
         }
         try:
-            chans.append((label, _open(uid, tx, rx, baud)))
+            chans.append([label, _open(uid, tx, rx, baud), True])
             res[label]['opened'] = True
         except Exception as e:  # noqa: BLE001
-            chans.append((label, None))
+            chans.append([label, None, False])
             res[label]['err_open'] = str(e)
 
     rounds = max(1, total // CHUNK)
-    # per-byte timeout budget grows for slow baud
-    rt = max(50, int(CHUNK * 12000 / baud) + 20)
-    t0 = time.ticks_ms()
-    for _ in range(rounds):
-        for label, u in chans:
-            if u:
-                u.read()  # clear stale
-                u.write(_PATTERN)
-        for label, u in chans:
-            if not u:
+    rt = max(20, int(CHUNK * 14000 / baud) + 8)  # read budget, generous margin
+    for rnd in range(rounds):
+        for ch in chans:
+            if ch[1] and ch[2]:
+                ch[1].read()
+                ch[1].write(_PATTERN)
+        for ch in chans:
+            if not (ch[1] and ch[2]):
                 continue
-            got = _read_exact(u, CHUNK, rt)
+            t0 = time.ticks_us()
+            got = _read_exact(ch[1], CHUNK, rt)
+            r = res[ch[0]]
             if got == _PATTERN:
-                res[label]['ok_bytes'] += CHUNK
+                r['ok'] += CHUNK
+                r['_us'] += time.ticks_diff(time.ticks_us(), t0)
             else:
-                res[label]['errors'] += 1
-    dt = max(1, time.ticks_diff(time.ticks_ms(), t0))
+                r['err'] += 1
+        if rnd == 0:  # drop ports with no jumper so the rest stays fast
+            for ch in chans:
+                if ch[1] and res[ch[0]]['ok'] == 0:
+                    ch[2] = False
 
-    for label, u in chans:
-        if u:
-            u.deinit()
+    for ch in chans:
+        if ch[1]:
+            ch[1].deinit()
+    for label, *_ in PORTS:
         r = res[label]
-        r['pass'] = r['opened'] and r['errors'] == 0 and r['ok_bytes'] > 0
-        r['kbps'] = round(r['ok_bytes'] * 1000 / dt / 1024, 1)
+        r['pass'] = r['opened'] and r['err'] == 0 and r['ok'] > 0
+        r['kbps'] = round(r['ok'] / (r['_us'] / 1e6) / 1024, 1) if r['_us'] else 0
 
     if show:
-        for label, _uid, _tx, _rx in PORTS:
+        for label, *_ in PORTS:
             r = res[label]
             if not r['opened']:
                 state = 'UART open FAILED'
             elif r['pass']:
-                state = 'PASS  {} KB/s'.format(r['kbps'])
+                state = 'ON line   {} KB/s'.format(r['kbps'])
             else:
-                state = 'FAIL  ({} err) — jumper TX<->RX?'.format(r['errors'])
+                state = 'off line  (no jumper)'
             print('    {}: {}'.format(label, state))
     return res
 
 
 def max_speed(show=True):
-    """Sweep the baud ladder; report the highest passing baud per port."""
+    """Sweep the baud ladder; print progress and the highest baud per port."""
     if show:
-        print('  Max-speed sweep ({}..{} baud)...'.format(BAUDS[0], BAUDS[-1]))
+        print('  Max-speed sweep (jumpered ports only):')
     best = {label: None for label, *_ in PORTS}
     for baud in BAUDS:
-        res = echo(baud, total=2048, show=False)
-        for label in best:
-            if res[label]['pass']:
-                best[label] = baud
+        res = echo(baud, total=1024, show=False)
+        passed = [label for label in best if res[label]['pass']]
+        for label in passed:
+            best[label] = baud
+        if show:
+            print(
+                '    {:>7}: {}'.format(baud, ' '.join(p.strip() for p in passed) or '-')
+            )
     if show:
+        print('  Highest per port:')
         for label, *_ in PORTS:
             b = best[label]
             print(
-                '    {}: {}'.format(
-                    label, '{} baud'.format(b) if b else 'no loopback (jumper?)'
-                )
+                '    {}: {}'.format(label, '{} baud'.format(b) if b else 'no loopback')
             )
     return best
 
@@ -233,16 +244,12 @@ def report():
     print('Pins: 20<->21  23<->22  32<->33  26<->27   (UART0 reserved — console)')
     print('\nUART controllers:')
     probe(show=True)
-    print('\nConcurrent echo @ 921600:')
+    print('\nLoopback @ 921600:')
     echo(921600, show=True)
-    print('\nPer-port maximum baud:')
-    best = max_speed(show=True)
-    ok = [b for b in best.values() if b]
-    if ok:
-        common = min(ok)
-        print('\nAll-ports concurrent @ {} (min of the maxes):'.format(common))
-        echo(common, show=True)
+    print('\nMax baud per port:')
+    max_speed(show=True)
     print('=' * 78)
+    print('Done.')
 
 
 # -- interactive menu ----------------------------------------------------
