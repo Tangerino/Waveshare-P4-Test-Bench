@@ -612,6 +612,51 @@ class WiFiDiagnostics:
             print('  TX power   : {} dBm'.format(info['txpower']))
         return info
 
+    # -- 802.11 PHY / WiFi 6 --------------------------------------------
+
+    def protocol(self, show=True):
+        """Read the enabled 802.11 protocol bitmask (esp_wifi_get_protocol).
+
+        Bits: 0x01=11b 0x02=11g 0x04=11n 0x08=LR 0x10=11ax(WiFi 6). Reports
+        whether WiFi 6 (ax) is enabled. The C6 is 2.4 GHz-only 802.11ax; whether
+        a given link actually runs ax also needs an ax-capable AP.
+        """
+        bits = (
+            (0x01, '11b'),
+            (0x02, '11g'),
+            (0x04, '11n'),
+            (0x08, 'LR'),
+            (0x10, '11ax'),
+        )
+        info = {}
+        try:
+            mask = self.sta.config('protocol')
+            info['mask'] = mask
+            info['modes'] = [name for bit, name in bits if mask & bit]
+            info['wifi6'] = bool(mask & 0x10)
+        except (OSError, ValueError, TypeError, KeyError) as e:
+            info['error'] = str(e)
+        if show:
+            if 'mask' in info:
+                print(
+                    '  802.11     : {} (mask 0x{:02X})'.format(
+                        '/'.join(info['modes']) or '?', info['mask']
+                    )
+                )
+                print(
+                    '  WiFi 6 (ax): {}'.format(
+                        'ENABLED' if info['wifi6'] else 'not enabled'
+                    )
+                )
+            else:
+                print(
+                    '  802.11 PHY : not exposed by this firmware ({})'.format(
+                        info.get('error', '')
+                    )
+                )
+                print('  (C6 is 2.4 GHz-only 802.11ax-capable hardware)')
+        return info
+
     # -- full report -----------------------------------------------------
 
     def report(self):
@@ -627,6 +672,9 @@ class WiFiDiagnostics:
 
         print('\nPower:')
         self.power(show=True)
+
+        print('\nPHY / WiFi 6:')
+        self.protocol(show=True)
 
         print('\nConnecting:')
         if self.ensure_connected():
@@ -657,6 +705,7 @@ MENU = """
  3) Connect (defaults)   8) Power info
  4) Link / RSSI          9) Disconnect
  5) RSSI monitor         S) Speed test
+                         P) PHY / WiFi 6
                          0) Exit
 Choose: """
 
@@ -703,6 +752,8 @@ def main(d=None):
             _run(d.connectivity)
         elif choice == '8':
             _run(d.power)
+        elif choice in ('p', 'P'):
+            _run(d.protocol)
         elif choice in ('s', 'S'):
             _run(d.speedtest)
         elif choice == '9':
