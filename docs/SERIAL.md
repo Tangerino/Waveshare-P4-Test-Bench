@@ -19,10 +19,14 @@ or microSD `39-44`). Edit `PORTS` at the top of `serial/diag.py` to change them.
 |------|-----:|---:|---:|
 | 1 | 1 | GPIO20 | GPIO21 |
 | 2 | 2 | GPIO23 | GPIO22 |
-| 3 | 3 | GPIO24 | GPIO25 |
+| 3 | 3 | GPIO32 | GPIO33 |
 | 4 | 4 | GPIO26 | GPIO27 |
 
 `UART0` and its header pins `GPIO37/38` (TXD/RXD) are intentionally left free.
+
+> ⚠️ **`GPIO24/25` are the USB-Serial-JTAG D−/D+ pins** (the REPL/USB link), so
+> they can't be used as a UART while connected over USB — `machine.UART` rejects
+> them as `invalid pin`. That's why UART3 uses `GPIO32/33`, not `24/25`.
 
 ## Loopback jumpers
 
@@ -33,7 +37,7 @@ test:
 |--------|-----:|---------|---------------------|
 | JP1 | 1 | GPIO20 ↔ GPIO21 | both **left** column, adjacent rows — easiest |
 | JP2 | 2 | GPIO23 ↔ GPIO22 | GPIO23 left (upper) ↔ GPIO22 right — short wire |
-| JP3 | 3 | GPIO24 ↔ GPIO25 | **same row**, straight across left↔right |
+| JP3 | 3 | GPIO32 ↔ GPIO33 | GPIO32 right ↔ GPIO33 left — short wire |
 | JP4 | 4 | GPIO26 ↔ GPIO27 | GPIO26 left ↔ GPIO27 right (lower) — wire |
 
 Header pinout for reference (the test pins marked `◄JPn`):
@@ -52,9 +56,9 @@ Header pinout for reference (the test pins marked `◄JPn`):
   10   GPIO3                   GND
   11   GPIO2                   GPIO1
   12   GPIO0                   GPIO36
-  13   GND                     GPIO32
-  14   GPIO24  ◄JP3            GPIO25  ◄JP3
-  15   GPIO33                  GND
+  13   GND                     GPIO32  ◄JP3
+  14   GPIO24 (USB-JTAG D-)     GPIO25 (USB-JTAG D+)
+  15   GPIO33  ◄JP3            GND
   16   GPIO26  ◄JP4            GPIO54 (C6 reset)
   17   GPIO48                  GND
   18   GPIO53 (audio amp)      GPIO46
@@ -64,8 +68,8 @@ Header pinout for reference (the test pins marked `◄JPn`):
 
 Notes:
 - **JP1** (GPIO20↔21) sits on two adjacent left-column pins — the simplest.
-- **JP3** (GPIO24↔25) is one row, straight across the two columns.
-- **JP2** and **JP4** span columns/rows → use a short jumper wire.
+- **JP2**, **JP3**, **JP4** span columns/rows → use a short jumper wire.
+- `GPIO24/25` are **USB-Serial-JTAG** (the REPL link) — never use them as UART.
 - A port that shows `FAIL` simply has its jumper missing.
 - Don't jumper `GPIO37/38` (UART0 reserved).
 

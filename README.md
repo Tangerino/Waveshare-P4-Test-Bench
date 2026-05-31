@@ -316,9 +316,10 @@ monitor()             # live ON/off-line per port as you fit/remove jumpers
 
 The ESP32-P4 has **5 UART controllers** (UART0–4); the bench uses **UART1–4**
 and **reserves UART0** (the boot/console UART) to avoid future conflicts — so
-`GPIO37/38` stay free. Jumper: `20↔21`, `23↔22`, `24↔25`, `26↔27`. A `FAIL`
+`GPIO37/38` stay free. Jumper: `20↔21`, `23↔22`, `32↔33`, `26↔27`. A `FAIL`
 just means that port's jumper is missing; `probe()` confirms controller
-availability with no jumpers. One-shot: `./deploy.sh --serial`.
+availability with no jumpers. (UART3 uses `32/33` because `GPIO24/25` are the
+USB-Serial-JTAG pins and can't be a UART.) One-shot: `./deploy.sh --serial`.
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 

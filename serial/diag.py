@@ -12,7 +12,8 @@
 #
 # Jumper these header pins (TX<->RX) before testing:
 #   UART1 GPIO20<->21   UART2 GPIO23<->22
-#   UART3 GPIO24<->25   UART4 GPIO26<->27
+#   UART3 GPIO32<->33   UART4 GPIO26<->27
+# (GPIO24/25 are the USB-Serial-JTAG D-/D+ pins — unusable as UART.)
 #
 # Usage (REPL):
 #   from serial import echo, max_speed, report, probe, monitor
@@ -32,7 +33,7 @@ import machine
 PORTS = (
     ('UART1', 1, 20, 21),
     ('UART2', 2, 23, 22),
-    ('UART3', 3, 24, 25),
+    ('UART3', 3, 32, 33),  # NOT 24/25 — those are USB-JTAG D-/D+ (the REPL link)
     ('UART4', 4, 26, 27),
 )
 
@@ -201,7 +202,7 @@ def monitor(baud=115200, interval_ms=400):
             chans.append([label, None, False])
             print('  {}: UART open FAILED ({})'.format(label, e))
     print('Live loopback monitor @ {} baud — fit/remove TX<->RX jumpers.'.format(baud))
-    print('Pins: UART1 20<->21  UART2 23<->22  UART3 24<->25  UART4 26<->27')
+    print('Pins: UART1 20<->21  UART2 23<->22  UART3 32<->33  UART4 26<->27')
     print('(Ctrl-C to stop)')
     pat = _PATTERN[:16]
     try:
@@ -229,7 +230,7 @@ def report():
     print('=' * 78)
     print('Serial loopback — 4 UARTs (jumper TX<->RX on each port)')
     print('=' * 78)
-    print('Pins: 20<->21  23<->22  24<->25  26<->27   (UART0 reserved — console)')
+    print('Pins: 20<->21  23<->22  32<->33  26<->27   (UART0 reserved — console)')
     print('\nUART controllers:')
     probe(show=True)
     print('\nConcurrent echo @ 921600:')
