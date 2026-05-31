@@ -89,24 +89,33 @@ def ping(host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True
     pid = time.ticks_ms() & 0xFFFF
     poller = select.poll()
     poller.register(sock, select.POLLIN)
-    rtts = []
-    sent = 0
+    forever = count is None or count <= 0  # forever -> Ctrl-C to stop
+    sent = recv = rtt_sum = 0
+    rtt_min = rtt_max = None
     if show:
-        print('PING {} ({}): {} data bytes'.format(host, addr, size))
+        print(
+            'PING {} ({}): {} data bytes{}'.format(
+                host, addr, size, '  (Ctrl-C to stop)' if forever else ''
+            )
+        )
+    seq = 0
     try:
-        for seq in range(1, count + 1):
+        while forever or seq < count:
+            seq += 1
+            sq = seq & 0xFFFF  # ICMP seq is 16-bit; wrap for forever runs
             payload = b'Q' * size
-            hdr = struct.pack('!BBHHH', 8, 0, 0, pid, seq)
+            hdr = struct.pack('!BBHHH', 8, 0, 0, pid, sq)
             cks = _checksum(hdr + payload)
-            pkt = struct.pack('!BBHHH', 8, 0, cks, pid, seq) + payload
+            pkt = struct.pack('!BBHHH', 8, 0, cks, pid, sq) + payload
+            sent += 1
             try:
                 sock.sendto(pkt, (addr, 1))
             except OSError as e:
                 if show:
                     print('  seq={} send failed ({})'.format(seq, e))
-                sent += 1
+                if forever or seq < count:
+                    time.sleep_ms(interval)
                 continue
-            sent += 1
             t0 = time.ticks_ms()
             got = False
             while True:
@@ -122,8 +131,11 @@ def ping(host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True
                 if len(icmp) < 8:
                     continue
                 r_type, _, _, r_id, r_seq = struct.unpack('!BBHHH', icmp)
-                if r_type == 0 and r_id == pid and r_seq == seq:
-                    rtts.append(rtt)
+                if r_type == 0 and r_id == pid and r_seq == sq:
+                    recv += 1
+                    rtt_sum += rtt
+                    rtt_min = rtt if rtt_min is None else min(rtt_min, rtt)
+                    rtt_max = rtt if rtt_max is None else max(rtt_max, rtt)
                     if show:
                         print(
                             '  {} bytes from {}: seq={} time={} ms'.format(
@@ -134,17 +146,20 @@ def ping(host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True
                     break
             if not got and show:
                 print('  seq={} timeout'.format(seq))
-            if seq < count:
+            if forever or seq < count:
                 time.sleep_ms(interval)
+    except KeyboardInterrupt:
+        if show:
+            print('  (stopped)')
     finally:
         poller.unregister(sock)
         sock.close()
 
-    recv = len(rtts)
     loss = round(100 * (sent - recv) / sent) if sent else 100
+    avg = round(rtt_sum / recv, 1) if recv else None
     stats = {'host': host, 'addr': addr, 'sent': sent, 'recv': recv, 'loss_pct': loss}
-    if rtts:
-        stats.update(min=min(rtts), max=max(rtts), avg=round(sum(rtts) / len(rtts), 1))
+    if recv:
+        stats.update(min=rtt_min, max=rtt_max, avg=avg)
     if show:
         print(
             '  --- {} stats: {}/{} received, {}% loss{}'.format(
@@ -153,10 +168,8 @@ def ping(host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True
                 sent,
                 loss,
                 ''
-                if not rtts
-                else ', rtt min/avg/max = {}/{}/{} ms'.format(
-                    stats['min'], stats['avg'], stats['max']
-                ),
+                if not recv
+                else ', rtt min/avg/max = {}/{}/{} ms'.format(rtt_min, avg, rtt_max),
             )
         )
     return stats
@@ -294,8 +307,28 @@ def http_download(
     return {'bytes': total, 'ms': dt, 'mbps': mbps, 'url': url}
 
 
-def speedtest(download_url=None, ping_host='8.8.8.8', show=True):
-    """Latency (ping) + HTTP download throughput. Returns a summary dict."""
+def speedtest(download_url=None, ping_host='8.8.8.8', show=True, forever=False):
+    """Latency (ping) + HTTP download throughput. Returns a summary dict.
+
+    forever=True repeats the test until Ctrl-C (each run numbered).
+    """
+    if forever:
+        run = 0
+        last = None
+        if show:
+            print('Speed test loop (Ctrl-C to stop):')
+        try:
+            while True:
+                run += 1
+                if show:
+                    print('--- run {} ---'.format(run))
+                last = speedtest(download_url, ping_host, show=show, forever=False)
+                time.sleep_ms(500)
+        except KeyboardInterrupt:
+            if show:
+                print('  (stopped after {} run(s))'.format(run))
+        return last
+
     if show:
         print('Speed test (plain HTTP; needs internet):')
 

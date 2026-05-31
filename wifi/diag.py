@@ -20,7 +20,6 @@
 #   C6 radio. They are informational and do not indicate a failure.
 
 import network
-import struct
 import sys
 import time
 
@@ -30,11 +29,6 @@ try:
     import socket
 except ImportError:  # pragma: no cover - some ports name it usocket
     import usocket as socket
-
-try:
-    import select
-except ImportError:  # pragma: no cover
-    import uselect as select
 
 
 # Default credentials come from secrets.py (gitignored; copy secrets_example.py).
@@ -394,12 +388,15 @@ class WiFiDiagnostics:
         finally:
             s.close()
 
-    def speedtest(self, url=None, show=True):
-        """Latency + HTTP download throughput over the WiFi link."""
+    def speedtest(self, url=None, forever=False, show=True):
+        """Latency + HTTP download throughput over the WiFi link.
+
+        forever=True loops until Ctrl-C.
+        """
         if not self.ensure_connected():
             print('auto-connect failed; cannot run speed test.')
             return None
-        return netutils.speedtest(download_url=url, show=show)
+        return netutils.speedtest(download_url=url, show=show, forever=forever)
 
     def connectivity(self, show=True):
         """End-to-end: gateway, DNS, and internet reachability."""
@@ -430,125 +427,15 @@ class WiFiDiagnostics:
 
     # -- ICMP ping -------------------------------------------------------
 
-    @staticmethod
-    def _checksum(data):
-        if len(data) & 1:
-            data += b'\x00'
-        cs = 0
-        for i in range(0, len(data), 2):
-            cs += (data[i] << 8) + data[i + 1]
-        cs = (cs & 0xFFFF) + (cs >> 16)
-        cs = (cs & 0xFFFF) + (cs >> 16)
-        return ~cs & 0xFFFF
+    def ping(self, host='8.8.8.8', count=4, **kw):
+        """ICMP echo over the WiFi link (delegates to netutils.ping).
 
-    def ping(
-        self, host='8.8.8.8', count=4, timeout=1000, interval=500, size=56, show=True
-    ):
-        """ICMP echo via a raw socket. RTTs in ms.
-
-        Needs raw-socket support in the firmware/lwIP; if unavailable it says
-        so (use tcp_check() as a fallback). Returns a stats dict.
+        count<=0 pings forever until Ctrl-C. Auto-connects first.
         """
         if not self.ensure_connected():
             print('  ping: auto-connect failed; cannot ping.')
             return None
-        try:
-            addr = socket.getaddrinfo(host, 1)[0][-1][0]
-        except OSError as e:
-            if show:
-                print('  ping: cannot resolve {} ({})'.format(host, e))
-            return None
-
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, 1)
-        except (OSError, AttributeError) as e:
-            if show:
-                print('  ping: raw socket unavailable ({}); try tcp_check()'.format(e))
-            return None
-
-        pid = time.ticks_ms() & 0xFFFF
-        poller = select.poll()
-        poller.register(sock, select.POLLIN)
-        rtts = []
-        sent = 0
-        if show:
-            print('PING {} ({}): {} data bytes'.format(host, addr, size))
-        try:
-            for seq in range(1, count + 1):
-                payload = b'Q' * size
-                hdr = struct.pack('!BBHHH', 8, 0, 0, pid, seq)
-                cks = self._checksum(hdr + payload)
-                pkt = struct.pack('!BBHHH', 8, 0, cks, pid, seq) + payload
-                try:
-                    sock.sendto(pkt, (addr, 1))
-                except OSError as e:
-                    if show:
-                        print('  seq={} send failed ({})'.format(seq, e))
-                    sent += 1
-                    continue
-                sent += 1
-                t0 = time.ticks_ms()
-                # Drain replies until ours arrives or the budget expires.
-                got = False
-                while True:
-                    left = timeout - time.ticks_diff(time.ticks_ms(), t0)
-                    if left <= 0:
-                        break
-                    if not poller.poll(left):
-                        break
-                    resp = sock.recv(128)
-                    rtt = time.ticks_diff(time.ticks_ms(), t0)
-                    ihl = (resp[0] & 0x0F) * 4
-                    icmp = resp[ihl : ihl + 8]
-                    if len(icmp) < 8:
-                        continue
-                    r_type, _, _, r_id, r_seq = struct.unpack('!BBHHH', icmp)
-                    if r_type == 0 and r_id == pid and r_seq == seq:
-                        rtts.append(rtt)
-                        if show:
-                            print(
-                                '  {} bytes from {}: seq={} time={} ms'.format(
-                                    len(resp) - ihl, addr, seq, rtt
-                                )
-                            )
-                        got = True
-                        break
-                if not got and show:
-                    print('  seq={} timeout'.format(seq))
-                if seq < count:
-                    time.sleep_ms(interval)
-        finally:
-            poller.unregister(sock)
-            sock.close()
-
-        recv = len(rtts)
-        loss = round(100 * (sent - recv) / sent) if sent else 100
-        stats = {
-            'host': host,
-            'addr': addr,
-            'sent': sent,
-            'recv': recv,
-            'loss_pct': loss,
-        }
-        if rtts:
-            stats.update(
-                min=min(rtts), max=max(rtts), avg=round(sum(rtts) / len(rtts), 1)
-            )
-        if show:
-            print(
-                '  --- {} stats: {}/{} received, {}% loss{}'.format(
-                    host,
-                    recv,
-                    sent,
-                    loss,
-                    ''
-                    if not rtts
-                    else ', rtt min/avg/max = {}/{}/{} ms'.format(
-                        stats['min'], stats['avg'], stats['max']
-                    ),
-                )
-            )
-        return stats
+        return netutils.ping(host, count=count, **kw)
 
     # -- RSSI monitor ----------------------------------------------------
 
@@ -750,7 +637,7 @@ def main(d=None):
             _run(lambda: d.monitor(count=int(n) if n else None))
         elif choice == '6':
             host = input('host [8.8.8.8]: ').strip() or '8.8.8.8'
-            _run(lambda: d.ping(host))
+            _run(lambda: d.ping(host, count=0))  # continuous; Ctrl-C to stop
         elif choice == '7':
             _run(d.connectivity)
         elif choice == '8':
@@ -758,7 +645,7 @@ def main(d=None):
         elif choice in ('p', 'P'):
             _run(d.protocol)
         elif choice in ('s', 'S'):
-            _run(d.speedtest)
+            _run(lambda: d.speedtest(forever=True))  # loop; Ctrl-C to stop
         elif choice == '9':
             _run(d.disconnect)
             print('disconnected.')

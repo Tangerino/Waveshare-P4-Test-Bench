@@ -172,11 +172,11 @@ class EthernetDiagnostics:
             return None
         return netutils.ping(host, **kw)
 
-    def speedtest(self, url=None, show=True):
+    def speedtest(self, url=None, forever=False, show=True):
         if not self.ensure_up():
             print('  link not up; cannot run speed test.')
             return None
-        return netutils.speedtest(download_url=url, show=show)
+        return netutils.speedtest(download_url=url, show=show, forever=forever)
 
     def connectivity(self, show=True):
         if not self.ensure_up():
@@ -245,9 +245,9 @@ def main(e=None):
             netutils.run_action(e.connectivity)
         elif choice == '6':
             host = input('host [8.8.8.8]: ').strip() or '8.8.8.8'
-            netutils.run_action(lambda: e.ping(host))
+            netutils.run_action(lambda: e.ping(host, count=0))  # forever
         elif choice == '7':
-            netutils.run_action(e.speedtest)
+            netutils.run_action(lambda: e.speedtest(forever=True))  # forever
         elif choice == '9':
             netutils.run_action(e.down)
         elif choice == '0':
