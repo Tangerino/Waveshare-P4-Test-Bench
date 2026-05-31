@@ -103,6 +103,7 @@ p4/
 ├── rs485/             # RS485 + Modbus-RTU (energy meters)
 ├── rs232/             # plain TTL UART
 ├── modem/             # Quectel EC200U/EG915U (AT + MQTT)
+├── serial/            # raw 4-UART loopback test (HW, no protocol)
 └── docs/SERIAL.md     # serial ports: schematics, BOM, pin map
 ```
 
@@ -124,6 +125,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 9 | RS485 | `rs485/` | Modbus-RTU master (auto-DE, FC03/04, address scan) — needs a transceiver | `--rs485` |
 | 10 | RS232 | `rs232/` | TTL UART write/read + loopback self-test | `--rs232` |
 | 11 | Modem | `modem/` | Quectel EC200U/EG915U power-on, info, MQTT — needs the module | `--modem` |
+| 12 | Serial | `serial/` | raw 4-UART loopback + max-baud sweep (jumper TX↔RX) | `--serial` |
 
 ## Deploy
 
@@ -142,6 +144,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --rs485   # upload, then RS485 Modbus address scan
 ./deploy.sh --rs232   # upload, then RS232/TTL loopback self-test
 ./deploy.sh --modem   # upload, then Quectel power-on + info
+./deploy.sh --serial  # upload, then 4-UART loopback + max-baud sweep
 ./deploy.sh --help    # all options
 ```
 
@@ -332,6 +335,22 @@ q.mqtt_publish_once('broker.host', 1883, 'p4-meter', 'meters/p4', '{"kwh":123}')
 - **RS232** here is TTL 3.3 V (RX/TX/GND/VCC) → wires straight to a UART.
 - **Modem** needs its **own 3.4–4.2 V supply** (2 A bursts), a **1.8 V level
   shifter** on the UART, and a PWRKEY pulse — details in `docs/SERIAL.md`.
+
+### Raw loopback test (hardware bring-up, no protocol)
+
+Before wiring transceivers, verify the bare UART pins by jumpering **TX↔RX** on
+each port and running the `serial` test — it loops a pattern through all 4
+ports concurrently and **sweeps baud to find the max each port passes**:
+
+```python
+from serial import echo, max_speed, report
+report()              # concurrent echo @ 921600 + per-port max-baud sweep
+echo(2000000)         # all 4 ports at one baud
+max_speed()           # highest passing baud per port
+```
+
+Jumper: `20↔21`, `23↔22`, `24↔25`, `26↔27`. A `FAIL` just means that port's
+jumper is missing. One-shot: `./deploy.sh --serial`.
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 

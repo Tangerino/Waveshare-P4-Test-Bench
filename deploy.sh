@@ -15,6 +15,7 @@
 #   ./deploy.sh --rs485         # copy, then RS485/Modbus scan (port 1)
 #   ./deploy.sh --rs232         # copy, then RS232/TTL loopback self-test
 #   ./deploy.sh --modem         # copy, then Quectel power-on + info
+#   ./deploy.sh --serial        # copy, then 4-UART loopback + max-baud sweep
 #   PORT=/dev/tty.usbmodemXXX ./deploy.sh    # override the port
 #
 # Override the default port with the PORT env var, or edit it below.
@@ -24,7 +25,7 @@ set -euo pipefail
 PORT="${PORT:-/dev/tty.usbmodem5B610378241}"
 # Root files copied as-is, plus package directories copied recursively.
 FILES=(main.py netutils.py)
-PKGS=(wifi eth system sdcard i2c sleep audio gpio rs485 rs232 modem)
+PKGS=(wifi eth system sdcard i2c sleep audio gpio rs485 rs232 modem serial)
 
 usage() {
     cat <<EOF
@@ -45,6 +46,7 @@ Options:
   --rs485       Copy, then RS485 Modbus address scan (port 1).
   --rs232       Copy, then RS232/TTL UART loopback self-test.
   --modem       Copy, then Quectel modem power-on + info.
+  --serial      Copy, then 4-UART loopback + max-baud sweep (jumper TX<->RX).
   --no-repl     Copy + reset, but don't open the REPL.
   -h, --help    Show this help and exit.
 
@@ -149,6 +151,11 @@ case "${1:-}" in
         echo ">> Quectel modem power-on + info"
         exec mpremote connect "$PORT" exec \
             "from modem import QuectelModem; QuectelModem().report()"
+        ;;
+    --serial)
+        echo ">> 4-UART loopback + max-baud sweep (jumper TX<->RX on each port)"
+        exec mpremote connect "$PORT" exec \
+            "from serial import report; report()"
         ;;
     --no-repl)
         echo ">> Resetting board"
