@@ -1,20 +1,23 @@
 # serial/diag.py
 #
-# Raw UART loopback test for all 5 UARTs — pure hardware, no protocol.
+# Raw UART loopback test for the 4 protocol UARTs — pure hardware, no protocol.
 # Jumper TX<->RX on each port, then this writes a pattern and verifies it comes
-# back. Runs all 5 ports concurrently and sweeps baud to find the max that
+# back. Runs all 4 ports concurrently and sweeps baud to find the max that
 # passes per port.
+#
+# UART0 (the boot/console UART) is intentionally NOT used, to avoid future
+# conflicts (boot logs, serial console, ROM download). probe() still reports it.
 #
 # Target: MicroPython on ESP32-P4 (ESP32_GENERIC_P4-C6_WIFI).
 #
 # Jumper these header pins (TX<->RX) before testing:
 #   RS485#1 GPIO20<->21   RS485#2 GPIO23<->22
-#   RS232   GPIO24<->25   Modem   GPIO26<->27   UART0 GPIO37<->38
+#   RS232   GPIO24<->25   Modem   GPIO26<->27
 #
 # Usage (REPL):
 #   from serial import echo, max_speed, report, probe
 #   probe()          # which UART controllers (0..5) this firmware exposes
-#   echo(921600)     # all 5 ports, one baud
+#   echo(921600)     # all 4 ports, one baud
 #   max_speed()      # sweep -> highest passing baud per port
 #   report()
 
@@ -22,15 +25,15 @@ import time
 
 import machine
 
-# (label, uart_id, tx, rx) — the 5 ports, on confirmed free header GPIOs.
-# UART0 (GPIO37/38) is the board's boot/console UART; usable here because the
-# REPL is on USB-Serial-JTAG, but it may print boot logs — see probe().
+# (label, uart_id, tx, rx) — the 4 protocol ports, on confirmed free header
+# GPIOs. UART0 is deliberately left out (reserved for the console). GPIO37/38
+# (the TXD/RXD header pins) stay free for an extra port only if you ever decide
+# to use UART0.
 PORTS = (
     ('RS485#1', 1, 20, 21),
     ('RS485#2', 2, 23, 22),
     ('RS232  ', 3, 24, 25),
     ('Modem  ', 4, 26, 27),
-    ('UART0  ', 0, 37, 38),  # spare header UART (TXD/RXD pins)
 )
 
 # Scratch pins used by probe() to test controller availability.
@@ -89,7 +92,8 @@ def probe(show=True):
             u.deinit()
             avail.append(uid)
             if show:
-                print('    UART{}: available'.format(uid))
+                note = '  (reserved — console, not used)' if uid == 0 else ''
+                print('    UART{}: available{}'.format(uid, note))
         except Exception as e:  # noqa: BLE001
             if show:
                 print('    UART{}: no ({})'.format(uid, e))
@@ -99,7 +103,7 @@ def probe(show=True):
 
 
 def echo(baud=921600, total=4096, show=True):
-    """Loop back `total` bytes through all 5 ports concurrently at `baud`.
+    """Loop back `total` bytes through all 4 ports concurrently at `baud`.
 
     Returns {label: {'ok_bytes', 'errors', 'opened', 'kbps', 'pass'}}.
     """
@@ -184,9 +188,9 @@ def max_speed(show=True):
 
 def report():
     print('=' * 78)
-    print('Serial loopback — 5 UARTs (jumper TX<->RX on each port)')
+    print('Serial loopback — 4 UARTs (jumper TX<->RX on each port)')
     print('=' * 78)
-    print('Pins: 20<->21  23<->22  24<->25  26<->27  37<->38')
+    print('Pins: 20<->21  23<->22  24<->25  26<->27   (UART0 reserved — console)')
     print('\nUART controllers:')
     probe(show=True)
     print('\nConcurrent echo @ 921600:')
@@ -204,7 +208,7 @@ def report():
 # -- interactive menu ----------------------------------------------------
 
 MENU = """
---- Serial loopback (ESP32-P4, 5 UARTs) ---
+--- Serial loopback (ESP32-P4, 4 UARTs) ---
  1) Full report          3) Echo at custom baud
  2) Max-speed sweep       4) Probe UART controllers
  0) Exit

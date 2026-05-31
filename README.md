@@ -125,7 +125,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 9 | RS485 | `rs485/` | Modbus-RTU master (auto-DE, FC03/04, address scan) — needs a transceiver | `--rs485` |
 | 10 | RS232 | `rs232/` | TTL UART write/read + loopback self-test | `--rs232` |
 | 11 | Modem | `modem/` | Quectel EC200U/EG915U power-on, info, MQTT — needs the module | `--modem` |
-| 12 | Serial | `serial/` | raw 5-UART loopback + max-baud sweep + controller probe (jumper TX↔RX) | `--serial` |
+| 12 | Serial | `serial/` | raw 4-UART loopback + max-baud sweep + controller probe (jumper TX↔RX) | `--serial` |
 
 ## Deploy
 
@@ -339,21 +339,21 @@ q.mqtt_publish_once('broker.host', 1883, 'p4-meter', 'meters/p4', '{"kwh":123}')
 ### Raw loopback test (hardware bring-up, no protocol)
 
 Before wiring transceivers, verify the bare UART pins by jumpering **TX↔RX** on
-each port and running the `serial` test — it loops a pattern through all 5
-UARTs concurrently and **sweeps baud to find the max each port passes**:
+each port and running the `serial` test — it loops a pattern through all 4
+ports concurrently and **sweeps baud to find the max each port passes**:
 
 ```python
 from serial import echo, max_speed, report, probe
 probe()               # which UART controllers (0..5) the firmware exposes
 report()              # probe + concurrent echo @ 921600 + per-port max-baud sweep
-echo(2000000)         # all 5 ports at one baud
+echo(2000000)         # all 4 ports at one baud
 max_speed()           # highest passing baud per port
 ```
 
-The ESP32-P4 has **5 UART controllers** (UART0–4): UART1–4 drive the four
-protocol ports; **UART0** is a free 5th on the spare `GPIO37/38` header pins
-(the REPL is on USB-Serial-JTAG). Jumper: `20↔21`, `23↔22`, `24↔25`, `26↔27`,
-`37↔38`. A `FAIL` just means that port's jumper is missing; `probe()` confirms
+The ESP32-P4 has **5 UART controllers** (UART0–4), but the bench uses **UART1–4**
+and **deliberately reserves UART0** (the boot/console UART) to avoid future
+conflicts — so `GPIO37/38` stay free. Jumper: `20↔21`, `23↔22`, `24↔25`,
+`26↔27`. A `FAIL` just means that port's jumper is missing; `probe()` confirms
 controller availability with no jumpers. One-shot: `./deploy.sh --serial`.
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
