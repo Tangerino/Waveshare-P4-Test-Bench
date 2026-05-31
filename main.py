@@ -16,6 +16,7 @@ MENU = """
  7) Audio (ES8311 speaker)
  8) GPIO (blink/read any pin)
  9) Serial loopback (4 UARTs, HW)
+10) BLE (ESP32-C6, hosted)
  0) Exit
 Choose: """
 
@@ -63,6 +64,10 @@ def select():
             import serial
 
             serial.main()
+        elif choice == '10':
+            import ble
+
+            ble.main()
         elif choice == '0':
             return
         else:

@@ -101,6 +101,7 @@ p4/
 │   ├── __init__.py    # re-exports GPIODiagnostics, main
 │   └── diag.py
 ├── serial/            # raw 4-UART loopback test (HW, no protocol)
+├── ble/               # BLE probe / scan / advertise (via C6, hosted)
 └── docs/SERIAL.md     # serial port UART test: pins, jumpers, how to run
 ```
 
@@ -120,6 +121,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 7 | Audio | `audio/` | ES8311 codec ID probe + I2S tone on the speaker | `--audio` |
 | 8 | GPIO | `gpio/` | drive/blink/read any pin (no onboard user LED) | `--gpio` |
 | 9 | Serial | `serial/` | raw 4-UART loopback + max-baud sweep + controller probe (jumper TX↔RX) | `--serial` |
+| 10 | BLE | `ble/` | availability probe + advertiser scan + beacon (via C6, hosted) | `--ble` |
 
 ## Deploy
 
@@ -136,6 +138,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --audio   # upload, then ES8311 probe + a test tone
 ./deploy.sh --gpio    # upload, then GPIO test summary
 ./deploy.sh --serial  # upload, then 4-UART loopback + max-baud sweep
+./deploy.sh --ble     # upload, then BLE availability probe + scan
 ./deploy.sh --help    # all options
 ```
 
@@ -320,6 +323,29 @@ and **reserves UART0** (the boot/console UART) to avoid future conflicts — so
 just means that port's jumper is missing; `probe()` confirms controller
 availability with no jumpers. (UART3 uses `32/33` because `GPIO24/25` are the
 USB-Serial-JTAG pins and can't be a UART.) One-shot: `./deploy.sh --serial`.
+
+## BLE (via the ESP32-C6)
+
+The P4 has no radio — BLE comes from the **ESP32-C6 over the esp-hosted link**.
+Whether MicroPython can use it depends on the build routing BLE/HCI through the
+hosted transport, which the **`C6_WIFI`** image may not do. The `ble` test
+**probes that first**, then scans/advertises if BLE is live.
+
+```python
+from ble import BLEDiagnostics
+b = BLEDiagnostics()
+b.probe()                 # is BLE available on this firmware?
+b.scan(5000)              # list nearby BLE advertisers (addr, RSSI, name)
+b.advertise('P4-TEST')    # advertise a beacon (find it in a phone BLE app)
+```
+
+`probe()` reports one of:
+- `bluetooth module: NOT present` → BLE isn't compiled into this build.
+- `BLE controller: FAILED to activate` → module present, but the hosted C6 link
+  doesn't bridge BLE on this firmware.
+- `BLE controller: ACTIVE` → BLE works; scan/advertise are usable.
+
+One-shot: `./deploy.sh --ble`.
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 
