@@ -24,7 +24,7 @@ def select():
     while True:
         try:
             choice = input(MENU).strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             print()
             return
         if choice == '1':
@@ -77,4 +77,9 @@ try:
 except Exception:
     pass
 
-select()
+# Ctrl-C from any menu propagates here and drops cleanly to the REPL — this is
+# also what lets `mpremote`/deploy.sh interrupt the menu to upload files.
+try:
+    select()
+except KeyboardInterrupt:
+    print()

@@ -87,7 +87,15 @@ for p in "${PKGS[@]}"; do
 done
 
 echo ">> Uploading ${FILES[*]} + ${PKGS[*]}/ to $PORT"
-mpremote connect "$PORT" "${cp_args[@]}"
+if ! mpremote connect "$PORT" "${cp_args[@]}"; then
+    echo >&2
+    echo "!! Upload failed ('could not enter raw repl' usually means the board" >&2
+    echo "   is busy or a serial monitor is attached). Try:" >&2
+    echo "     - close any open REPL / serial terminal on $PORT" >&2
+    echo "     - press Ctrl-C in the board's menu to drop to the REPL, then retry" >&2
+    echo "     - or unplug/replug the board and run ./deploy.sh again" >&2
+    exit 1
+fi
 echo ">> Upload OK"
 
 case "${1:-}" in

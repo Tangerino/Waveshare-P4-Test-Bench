@@ -681,7 +681,7 @@ def main(d=None):
     while True:
         try:
             choice = input(MENU).strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             print()
             return d
         print('> option {}'.format(choice))  # immediate echo so it's never "dead"

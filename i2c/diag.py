@@ -122,7 +122,7 @@ def main(b=None):
     while True:
         try:
             choice = input(MENU).strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             print()
             return b
         print('> option {}'.format(choice))
