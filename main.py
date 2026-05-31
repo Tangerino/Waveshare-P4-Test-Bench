@@ -17,6 +17,7 @@ MENU = """
  8) GPIO (blink/read any pin)
  9) Serial loopback (4 UARTs, HW)
 10) BLE (ESP32-C6, hosted)
+11) Threads (dual-core, IPC, perf)
  0) Exit
 Choose: """
 
@@ -68,6 +69,10 @@ def select():
             import ble
 
             ble.main()
+        elif choice == '11':
+            import thread
+
+            thread.main()
         elif choice == '0':
             return
         else:

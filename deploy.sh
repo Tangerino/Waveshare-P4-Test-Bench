@@ -14,6 +14,7 @@
 #   ./deploy.sh --gpio          # copy, then GPIO test info (interactive for pins)
 #   ./deploy.sh --serial        # copy, then 4-UART loopback + max-baud sweep
 #   ./deploy.sh --ble           # copy, then BLE probe + scan
+#   ./deploy.sh --thread        # copy, then threading/IPC/perf report
 #   PORT=/dev/tty.usbmodemXXX ./deploy.sh    # override the port
 #
 # Override the default port with the PORT env var, or edit it below.
@@ -23,7 +24,7 @@ set -euo pipefail
 PORT="${PORT:-/dev/tty.usbmodem5B610378241}"
 # Root files copied as-is, plus package directories copied recursively.
 FILES=(main.py netutils.py)
-PKGS=(wifi eth system sdcard i2c sleep audio gpio serial ble)
+PKGS=(wifi eth system sdcard i2c sleep audio gpio serial ble thread)
 
 usage() {
     cat <<EOF
@@ -43,6 +44,7 @@ Options:
   --gpio        Copy, then GPIO test summary (use the menu for live pins).
   --serial      Copy, then 4-UART loopback + max-baud sweep (jumper TX<->RX).
   --ble         Copy, then BLE availability probe + scan.
+  --thread      Copy, then threading + message-passing + perf report.
   --no-repl     Copy + reset, but don't open the REPL.
   -h, --help    Show this help and exit.
 
@@ -160,6 +162,11 @@ case "${1:-}" in
         echo ">> BLE availability probe + scan"
         exec mpremote connect "$PORT" exec \
             "from ble import BLEDiagnostics; BLEDiagnostics().report()"
+        ;;
+    --thread)
+        echo ">> Threading + message-passing + parallel-perf report"
+        exec mpremote connect "$PORT" exec \
+            "from thread import ThreadDiagnostics; ThreadDiagnostics().report()"
         ;;
     --no-repl)
         echo ">> Resetting board"

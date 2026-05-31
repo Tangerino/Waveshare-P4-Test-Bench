@@ -102,6 +102,7 @@ p4/
 │   └── diag.py
 ├── serial/            # raw 4-UART loopback test (HW, no protocol)
 ├── ble/               # BLE probe / scan / advertise (via C6, hosted)
+├── thread/            # threading / message-passing / parallel-perf (dual-core)
 ├── docs/SERIAL.md     # serial port UART test: pins, jumpers, how to run
 └── docs/P4-MIGRATION.md  # 4 UARTs + USB-to-RS485 conflict assessment (WROOM→P4)
 ```
@@ -123,6 +124,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 8 | GPIO | `gpio/` | drive/blink/read any pin (no onboard user LED) | `--gpio` |
 | 9 | Serial | `serial/` | raw 4-UART loopback + max-baud sweep + controller probe (jumper TX↔RX) | `--serial` |
 | 10 | BLE | `ble/` | availability probe + advertiser scan + beacon (via C6, hosted) | `--ble` |
+| 11 | Threads | `thread/` | spawn, lock/race, message-passing throughput/latency, 1-vs-2-thread perf (dual-core) | `--thread` |
 
 ## Deploy
 
@@ -140,6 +142,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --gpio    # upload, then GPIO test summary
 ./deploy.sh --serial  # upload, then 4-UART loopback + max-baud sweep
 ./deploy.sh --ble     # upload, then BLE availability probe + scan
+./deploy.sh --thread  # upload, then threading + message-passing + perf report
 ./deploy.sh --help    # all options
 ```
 
@@ -347,6 +350,36 @@ b.advertise('P4-TEST')    # advertise a beacon (find it in a phone BLE app)
 - `BLE controller: ACTIVE` → BLE works; scan/advertise are usable.
 
 One-shot: `./deploy.sh --ble`.
+
+## Threads (dual-core)
+
+The P4 has **two RISC-V cores**, and MicroPython exposes `_thread`. This test
+spawns workers, checks lock correctness, measures message-passing throughput,
+and compares 1- vs 2-thread CPU work.
+
+```python
+from thread import ThreadDiagnostics
+t = ThreadDiagnostics()
+t.spawn(4)           # start 4 workers, confirm all ran
+t.race(200000)       # shared counter: unlocked (racy) vs locked (exact)
+t.messaging(5000)    # producer->consumer throughput + latency
+t.performance()      # 1-thread vs 2-thread CPU work
+```
+
+What the bench actually shows on the P4:
+
+- **Message passing works well** — a lock-guarded mailbox sustains ~11k msg/s
+  with ~130 µs latency. Threads are great for I/O-bound concurrency and IPC.
+- **CPU-bound Python does NOT parallelise** — MicroPython serialises all
+  bytecode behind a global VM lock (a GIL). Splitting math across 2 threads is
+  *slower* than 1 (the two cores just bounce the lock), so `performance()`
+  reports well under 1× — that result is **correct/expected**, not a bug.
+- **Contended `lock.acquire()` costs ~one RTOS tick** here, so heavy
+  fine-grained locking is expensive (the lock sub-test uses a small count).
+- For real CPU parallelism use native code (`@micropython.viper` / C);
+  `_thread` buys you concurrency, not compute throughput.
+
+One-shot: `./deploy.sh --thread`.
 
 ## USB / USB host
 
