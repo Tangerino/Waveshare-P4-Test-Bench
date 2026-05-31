@@ -306,11 +306,12 @@ it, and **sweeps baud to find the max each port passes**. Full pin map, jumper
 table, and header diagram are in **[`docs/SERIAL.md`](docs/SERIAL.md)**.
 
 ```python
-from serial import probe, echo, max_speed, report
+from serial import probe, echo, max_speed, report, monitor
 probe()               # which UART controllers (0..5) the firmware exposes
 report()              # probe + concurrent echo @ 921600 + per-port max-baud sweep
 echo(2000000)         # all 4 ports at one baud
 max_speed()           # highest passing baud per port
+monitor()             # live ON/off-line per port as you fit/remove jumpers
 ```
 
 The ESP32-P4 has **5 UART controllers** (UART0–4); the bench uses **UART1–4**

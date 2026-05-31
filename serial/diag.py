@@ -15,10 +15,11 @@
 #   UART3 GPIO24<->25   UART4 GPIO26<->27
 #
 # Usage (REPL):
-#   from serial import echo, max_speed, report, probe
+#   from serial import echo, max_speed, report, probe, monitor
 #   probe()          # which UART controllers (0..5) this firmware exposes
 #   echo(921600)     # all 4 ports, one baud
 #   max_speed()      # sweep -> highest passing baud per port
+#   monitor()        # live ON/off-line per port as you fit/remove jumpers
 #   report()
 
 import time
@@ -185,6 +186,45 @@ def max_speed(show=True):
     return best
 
 
+def monitor(baud=115200, interval_ms=400):
+    """Continuously loopback-test each port; print ON/off-line transitions.
+
+    Install or remove a TX<->RX jumper and watch the status update live. A port
+    with no jumper reads back nothing -> 'off line'; fit the jumper -> 'ON line'.
+    Ctrl-C stops.
+    """
+    chans = []
+    for label, uid, tx, rx in PORTS:
+        try:
+            chans.append([label, _open(uid, tx, rx, baud), None])
+        except Exception as e:  # noqa: BLE001
+            chans.append([label, None, False])
+            print('  {}: UART open FAILED ({})'.format(label, e))
+    print('Live loopback monitor @ {} baud — fit/remove TX<->RX jumpers.'.format(baud))
+    print('Pins: UART1 20<->21  UART2 23<->22  UART3 24<->25  UART4 26<->27')
+    print('(Ctrl-C to stop)')
+    pat = _PATTERN[:16]
+    try:
+        while True:
+            for ch in chans:
+                label, u, prev = ch
+                if u is None:
+                    continue
+                u.read()
+                u.write(pat)
+                online = _read_exact(u, len(pat), 60) == pat
+                if online != prev:
+                    print('  {}  {} line'.format(label, 'ON ' if online else 'off'))
+                    ch[2] = online
+            time.sleep_ms(interval_ms)
+    except KeyboardInterrupt:
+        print('\n  monitor stopped.')
+    finally:
+        for label, u, _state in chans:
+            if u:
+                u.deinit()
+
+
 def report():
     print('=' * 78)
     print('Serial loopback — 4 UARTs (jumper TX<->RX on each port)')
@@ -208,9 +248,9 @@ def report():
 
 MENU = """
 --- Serial loopback (ESP32-P4, 4 UARTs) ---
- 1) Full report          3) Echo at custom baud
- 2) Max-speed sweep       4) Probe UART controllers
- 0) Exit
+ 1) Full report          4) Probe UART controllers
+ 2) Max-speed sweep       5) Live ON/off-line monitor
+ 3) Echo at custom baud   0) Exit
 Choose: """
 
 
@@ -233,6 +273,8 @@ def main(_=None):
             netutils.run_action(lambda: echo(b))
         elif choice == '4':
             netutils.run_action(probe)
+        elif choice == '5':
+            netutils.run_action(monitor)
         elif choice == '0':
             return
         else:

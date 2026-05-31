@@ -77,16 +77,35 @@ Notes:
 ```
 
 ```python
-from serial import probe, echo, max_speed, report
+from serial import probe, echo, max_speed, report, monitor
 probe()              # which UART controllers (0..5) the firmware exposes
 echo(921600)         # loop all 4 ports concurrently at one baud
 max_speed()          # highest passing baud per port (sweep 115k..5M)
 report()             # probe + concurrent echo + per-port max-baud sweep
+monitor()            # live: each port ON/off line as you fit/remove jumpers
 ```
 
 `probe()` needs **no jumpers** — it opens each UART id on scratch pins and
 reports which controllers exist, so you can confirm UART1–4 are available
 before wiring.
+
+### Live monitor
+
+`monitor()` (menu option 5) loops continuously and prints each port's status,
+reacting as you plug jumpers — a port with no jumper shows `off line`, fit the
+TX↔RX jumper and it flips to `ON line`. Only **transitions** print, so it stays
+quiet until something changes. Ctrl-C stops.
+
+```
+Live loopback monitor @ 115200 baud — fit/remove TX<->RX jumpers.
+(Ctrl-C to stop)
+  UART1  off line
+  UART2  off line
+  UART3  off line
+  UART4  off line
+  UART3  ON  line      <- fitted the GPIO24<->25 jumper
+  UART3  off line      <- removed it
+```
 
 Sample output:
 
