@@ -100,11 +100,8 @@ p4/
 ├── gpio/              # generic GPIO blink/read package
 │   ├── __init__.py    # re-exports GPIODiagnostics, main
 │   └── diag.py
-├── rs485/             # RS485 + Modbus-RTU (energy meters)
-├── rs232/             # plain TTL UART
-├── modem/             # Quectel EC200U/EG915U (AT + MQTT)
 ├── serial/            # raw 4-UART loopback test (HW, no protocol)
-└── docs/SERIAL.md     # serial ports: schematics, BOM, pin map
+└── docs/SERIAL.md     # serial port UART test: pins, jumpers, how to run
 ```
 
 New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
@@ -122,10 +119,7 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 | 6 | Sleep | `sleep/` | light/deep sleep + wake detection (RTC memory) | `--sleep` |
 | 7 | Audio | `audio/` | ES8311 codec ID probe + I2S tone on the speaker | `--audio` |
 | 8 | GPIO | `gpio/` | drive/blink/read any pin (no onboard user LED) | `--gpio` |
-| 9 | RS485 | `rs485/` | Modbus-RTU master (auto-DE, FC03/04, address scan) — needs a transceiver | `--rs485` |
-| 10 | RS232 | `rs232/` | TTL UART write/read + loopback self-test | `--rs232` |
-| 11 | Modem | `modem/` | Quectel EC200U/EG915U power-on, info, MQTT — needs the module | `--modem` |
-| 12 | Serial | `serial/` | raw 4-UART loopback + max-baud sweep + controller probe (jumper TX↔RX) | `--serial` |
+| 9 | Serial | `serial/` | raw 4-UART loopback + max-baud sweep + controller probe (jumper TX↔RX) | `--serial` |
 
 ## Deploy
 
@@ -141,9 +135,6 @@ New hardware goes in a sibling package (e.g. `i2c/`, `sensors/`): add it to
 ./deploy.sh --sleep   # upload, then sleep info + light-sleep test
 ./deploy.sh --audio   # upload, then ES8311 probe + a test tone
 ./deploy.sh --gpio    # upload, then GPIO test summary
-./deploy.sh --rs485   # upload, then RS485 Modbus address scan
-./deploy.sh --rs232   # upload, then RS232/TTL loopback self-test
-./deploy.sh --modem   # upload, then Quectel power-on + info
 ./deploy.sh --serial  # upload, then 4-UART loopback + max-baud sweep
 ./deploy.sh --help    # all options
 ```
@@ -307,54 +298,26 @@ g.blink(2, count=10, period_ms=200)   # blink GPIO2
 g.high(2); g.low(2); g.read(2, pull='up')
 ```
 
-## Serial ports (RS485 / RS232 / Quectel modem)
+## Serial ports (UART loopback)
 
-Adds four UARTs: **2× RS485** (Modbus-RTU energy meters), **1× RS232/TTL**, and
-**1× TTL → Quectel EC200U/EG915U** modem for MQTT. The ESP32-P4 has 5 hardware
-UARTs free (console is on USB-Serial-JTAG). **Wiring diagrams, BOM, and the pin
-map are in [`docs/SERIAL.md`](docs/SERIAL.md)** — read it first; the pin
-constants at the top of each `*/diag.py` are **placeholders to assign to free
-header GPIOs** on your board.
+A pure-hardware UART test — **no protocol**. Jumper **TX↔RX** on each port and
+the `serial` test loops a pattern through all 4 ports concurrently, verifies
+it, and **sweeps baud to find the max each port passes**. Full pin map, jumper
+table, and header diagram are in **[`docs/SERIAL.md`](docs/SERIAL.md)**.
 
 ```python
-from rs485 import open_port            # two Modbus meter buses
-m1 = open_port(1, baud=9600); m1.scan(); m1.read_holding(addr=1, reg=0, count=2)
-
-from rs232 import RS232                 # TTL device (loopback: jumper TX<->RX)
-p = RS232(); p.loopback(); p.write('hi\r\n'); print(p.read())
-
-from modem import QuectelModem          # LTE Cat-1 + built-in MQTT
-q = QuectelModem(); q.power_on(); q.wait_network()
-q.mqtt_publish_once('broker.host', 1883, 'p4-meter', 'meters/p4', '{"kwh":123}')
-```
-
-- **RS485** uses an **auto-direction** transceiver (MAX13487E, or an isolated
-  auto module) — **no DE/RE GPIO**. The Modbus driver is echo-tolerant (skips
-  the TX echo by CRC-matching the response). Manual DE parts still work via
-  `Modbus(..., de=<gpio>)`.
-- **RS232** here is TTL 3.3 V (RX/TX/GND/VCC) → wires straight to a UART.
-- **Modem** needs its **own 3.4–4.2 V supply** (2 A bursts), a **1.8 V level
-  shifter** on the UART, and a PWRKEY pulse — details in `docs/SERIAL.md`.
-
-### Raw loopback test (hardware bring-up, no protocol)
-
-Before wiring transceivers, verify the bare UART pins by jumpering **TX↔RX** on
-each port and running the `serial` test — it loops a pattern through all 4
-ports concurrently and **sweeps baud to find the max each port passes**:
-
-```python
-from serial import echo, max_speed, report, probe
+from serial import probe, echo, max_speed, report
 probe()               # which UART controllers (0..5) the firmware exposes
 report()              # probe + concurrent echo @ 921600 + per-port max-baud sweep
 echo(2000000)         # all 4 ports at one baud
 max_speed()           # highest passing baud per port
 ```
 
-The ESP32-P4 has **5 UART controllers** (UART0–4), but the bench uses **UART1–4**
-and **deliberately reserves UART0** (the boot/console UART) to avoid future
-conflicts — so `GPIO37/38` stay free. Jumper: `20↔21`, `23↔22`, `24↔25`,
-`26↔27`. A `FAIL` just means that port's jumper is missing; `probe()` confirms
-controller availability with no jumpers. One-shot: `./deploy.sh --serial`.
+The ESP32-P4 has **5 UART controllers** (UART0–4); the bench uses **UART1–4**
+and **reserves UART0** (the boot/console UART) to avoid future conflicts — so
+`GPIO37/38` stay free. Jumper: `20↔21`, `23↔22`, `24↔25`, `26↔27`. A `FAIL`
+just means that port's jumper is missing; `probe()` confirms controller
+availability with no jumpers. One-shot: `./deploy.sh --serial`.
 
 ## Ethernet pin map (ESP32-P4-NANO, IP101 PHY)
 

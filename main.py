@@ -15,10 +15,7 @@ MENU = """
  6) Sleep / wake
  7) Audio (ES8311 speaker)
  8) GPIO (blink/read any pin)
- 9) RS485 / Modbus (energy meters)
-10) RS232 / TTL UART
-11) Quectel modem (MQTT)
-12) Serial loopback (4 UARTs, HW)
+ 9) Serial loopback (4 UARTs, HW)
  0) Exit
 Choose: """
 
@@ -63,18 +60,6 @@ def select():
 
             gpio.main()
         elif choice == '9':
-            import rs485
-
-            rs485.main()
-        elif choice == '10':
-            import rs232
-
-            rs232.main()
-        elif choice == '11':
-            import modem
-
-            modem.main()
-        elif choice == '12':
             import serial
 
             serial.main()

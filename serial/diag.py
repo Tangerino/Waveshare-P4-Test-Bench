@@ -11,8 +11,8 @@
 # Target: MicroPython on ESP32-P4 (ESP32_GENERIC_P4-C6_WIFI).
 #
 # Jumper these header pins (TX<->RX) before testing:
-#   RS485#1 GPIO20<->21   RS485#2 GPIO23<->22
-#   RS232   GPIO24<->25   Modem   GPIO26<->27
+#   UART1 GPIO20<->21   UART2 GPIO23<->22
+#   UART3 GPIO24<->25   UART4 GPIO26<->27
 #
 # Usage (REPL):
 #   from serial import echo, max_speed, report, probe
@@ -25,15 +25,14 @@ import time
 
 import machine
 
-# (label, uart_id, tx, rx) — the 4 protocol ports, on confirmed free header
-# GPIOs. UART0 is deliberately left out (reserved for the console). GPIO37/38
-# (the TXD/RXD header pins) stay free for an extra port only if you ever decide
-# to use UART0.
+# (label, uart_id, tx, rx) — the 4 testable UARTs, on confirmed free header
+# GPIOs. UART0 is deliberately left out (reserved for the boot/console UART);
+# GPIO37/38 (TXD/RXD) stay free for it.
 PORTS = (
-    ('RS485#1', 1, 20, 21),
-    ('RS485#2', 2, 23, 22),
-    ('RS232  ', 3, 24, 25),
-    ('Modem  ', 4, 26, 27),
+    ('UART1', 1, 20, 21),
+    ('UART2', 2, 23, 22),
+    ('UART3', 3, 24, 25),
+    ('UART4', 4, 26, 27),
 )
 
 # Scratch pins used by probe() to test controller availability.
