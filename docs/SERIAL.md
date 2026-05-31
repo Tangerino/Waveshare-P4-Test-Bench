@@ -107,7 +107,7 @@ Live loopback monitor @ 115200 baud — fit/remove TX<->RX jumpers.
   UART2  off line
   UART3  off line
   UART4  off line
-  UART3  ON  line      <- fitted the GPIO24<->25 jumper
+  UART3  ON  line      <- fitted the GPIO32<->33 jumper
   UART3  off line      <- removed it
 ```
 
