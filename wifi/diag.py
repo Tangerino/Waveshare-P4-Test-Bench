@@ -617,23 +617,26 @@ class WiFiDiagnostics:
     def protocol(self, show=True):
         """Read the enabled 802.11 protocol bitmask (esp_wifi_get_protocol).
 
-        Bits: 0x01=11b 0x02=11g 0x04=11n 0x08=LR 0x10=11ax(WiFi 6). Reports
-        whether WiFi 6 (ax) is enabled. The C6 is 2.4 GHz-only 802.11ax; whether
-        a given link actually runs ax also needs an ax-capable AP.
+        Current ESP-IDF (5.x) bits: 0x01=11b 0x02=11g 0x04=11n 0x08=LR
+        0x10=11a 0x20=11ac 0x40=11ax(WiFi 6). Reports whether WiFi 6 (ax) is
+        enabled. The C6 is 2.4 GHz-only 802.11ax (so 11a/11ac never appear);
+        whether a given link actually runs ax also needs an ax-capable AP.
         """
         bits = (
             (0x01, '11b'),
             (0x02, '11g'),
             (0x04, '11n'),
             (0x08, 'LR'),
-            (0x10, '11ax'),
+            (0x10, '11a'),
+            (0x20, '11ac'),
+            (0x40, '11ax'),
         )
         info = {}
         try:
             mask = self.sta.config('protocol')
             info['mask'] = mask
             info['modes'] = [name for bit, name in bits if mask & bit]
-            info['wifi6'] = bool(mask & 0x10)
+            info['wifi6'] = bool(mask & 0x40)
         except (OSError, ValueError, TypeError, KeyError) as e:
             info['error'] = str(e)
         if show:
