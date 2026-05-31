@@ -14,7 +14,7 @@
 #   b = BLEDiagnostics()
 #   b.probe()          # is BLE available on this firmware?
 #   b.scan(5000)       # passive/active scan: list nearby BLE advertisers
-#   b.advertise('P4-TEST', 10)   # advertise so a phone can see the board
+#   b.advertise('P4-TEST')       # advertise until Ctrl-C (phone can see it)
 #   b.report(); main()
 
 import time
@@ -162,22 +162,31 @@ class BLEDiagnostics:
 
     # -- advertise -------------------------------------------------------
 
-    def advertise(self, name='P4-TEST', secs=10, show=True):
-        """Advertise a connectable beacon so a phone/scanner can see the board."""
+    def advertise(self, name='P4-TEST', secs=0, show=True):
+        """Advertise a named beacon (find it in a phone BLE app).
+
+        secs<=0 (default) advertises until Ctrl-C; otherwise for `secs` seconds.
+        """
         ble = self._get()
         ble.active(True)
         payload = bytes((2, _AD_FLAGS, 0x06))  # general discoverable, BR/EDR off
         nm = name.encode()
         payload += bytes((len(nm) + 1, _AD_NAME_COMPLETE)) + nm
+        forever = secs <= 0
         if show:
+            window = 'until Ctrl-C' if forever else 'for {} s'.format(secs)
             print(
-                '  Advertising as {!r} for {} s (scan with a phone BLE app)...'.format(
-                    name, secs
+                '  Advertising as {!r} {} (scan with a phone BLE app)...'.format(
+                    name, window
                 )
             )
         ble.gap_advertise(100000, adv_data=payload)  # 100 ms interval
         try:
-            time.sleep(secs)
+            if forever:
+                while True:
+                    time.sleep_ms(500)
+            else:
+                time.sleep(secs)
         except KeyboardInterrupt:
             pass
         finally:
