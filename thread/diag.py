@@ -12,11 +12,14 @@
 #   * message passing    — a lock-guarded mailbox between two threads; reports
 #                          throughput (msg/s) and average end-to-end latency.
 #   * parallel perf      — the SAME CPU work done on 1 thread vs 2. The P4 has
-#                          two cores, BUT MicroPython serialises bytecode behind
-#                          a global VM lock (a GIL), so pure-Python CPU work does
-#                          NOT get ~2x — a ~1x result here is correct/expected.
-#                          (True parallelism needs native @micropython.viper /
-#                          C / I/O-bound work that releases the lock.)
+#                          two cores, BUT the ESP32 port pins the interpreter and
+#                          EVERY _thread to a single core (MP_TASK_COREID = core 1;
+#                          core 0 is reserved for the IDF WiFi/BLE system tasks),
+#                          and a global VM lock (a GIL) serialises bytecode on top
+#                          of that. So pure-Python CPU work doesn't parallelise —
+#                          2 threads are usually SLOWER than 1 (GIL handoffs +
+#                          context switches on one core). That result is expected.
+#                          (True parallelism needs native @micropython.viper / C.)
 #
 # Note: MicroPython's _thread has no join(); workers signal completion through a
 # lock-guarded counter and the caller polls with a deadline, so a misbehaving
@@ -101,8 +104,11 @@ class ThreadDiagnostics:
             print('  main thread id : {}'.format(info['ident']))
             if info['stack'] is not None:
                 print('  default stack  : {} bytes'.format(info['stack']))
-            print('  cores (P4)     : 2 (dual RISC-V) — but the MicroPython VM')
-            print('                   lock serialises Python bytecode (a GIL).')
+            print('  cores (P4)     : 2 (dual RISC-V), BUT all Python runs on')
+            print('                   core 1 only (threads pinned to MP_TASK_COREID;')
+            print(
+                '                   core 0 = IDF WiFi/BLE) + a GIL serialises bytecode.'
+            )
         return info
 
     # -- spawn / join-by-counter ----------------------------------------
@@ -149,10 +155,11 @@ class ThreadDiagnostics:
     # -- race / lock correctness ----------------------------------------
 
     def race(self, iters=200000, lock_iters=2000, threads=2, show=True):
-        """Two threads += a shared counter on this dual-core chip.
+        """Two threads += a shared counter (both pinned to core 1, GIL on).
 
-        Unlocked: `iters` un-guarded increments per thread (fast). A non-atomic
-        read-modify-write run on both cores loses updates -> total < expected.
+        Unlocked: `iters` un-guarded increments per thread (fast). The GIL can
+        still preempt a non-atomic read-modify-write between bytecodes, so an
+        update may be lost -> total < expected (rare, timing-dependent).
         Locked: `lock_iters` guarded increments per thread (kept small because a
         *contended* lock.acquire() costs ~one RTOS tick on this port, so heavy
         locking is slow); with the lock the total is exact."""
@@ -197,7 +204,7 @@ class ThreadDiagnostics:
 
         lost = racy_exp - racy_total
         if show:
-            print('  cores          : 2 — threads can truly run at once here')
+            print('  note           : threads share core 1 + a GIL (no parallelism)')
             print(
                 '  no lock        : {}/{}  ({})'.format(
                     racy_total,
@@ -269,8 +276,9 @@ class ThreadDiagnostics:
 
     def performance(self, loops=300_000, show=True):
         """Run the SAME total CPU work as 1 thread, then split over 2 threads,
-        and compare wall-clock. On MicroPython the VM lock serialises bytecode,
-        so the 2-thread run is ~the same (no 2x) — that's the expected result."""
+        and compare wall-clock. Both threads share core 1 and the GIL, so the
+        2-thread run gets no speedup and is usually SLOWER (handoff + context-
+        switch overhead) — that's the expected result, not a bug."""
         self._require()
         gc.collect()
 
@@ -304,7 +312,7 @@ class ThreadDiagnostics:
         elif speedup >= 0.85:
             verdict = 'no gain — serialised by the VM lock (GIL)'
         else:
-            verdict = 'SLOWER — GIL bounced cross-core + switch overhead (expected)'
+            verdict = 'SLOWER — same-core time-slice: GIL handoff + switch overhead'
         if show:
             print('  workload       : {} integer ops'.format(loops))
             print('  1 thread       : {} ms'.format(single))

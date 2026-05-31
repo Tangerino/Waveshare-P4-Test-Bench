@@ -353,9 +353,13 @@ One-shot: `./deploy.sh --ble`.
 
 ## Threads (dual-core)
 
-The P4 has **two RISC-V cores**, and MicroPython exposes `_thread`. This test
-spawns workers, checks lock correctness, measures message-passing throughput,
-and compares 1- vs 2-thread CPU work.
+The P4 has **two RISC-V cores**, and MicroPython exposes `_thread` — but note
+the ESP32 port pins **all** Python (the interpreter task *and* every `_thread`)
+to **core 1 only** (`MP_TASK_COREID`); core 0 is reserved for the ESP-IDF
+WiFi/BLE system tasks. So your threads share one core, and a global VM lock (a
+GIL) serialises bytecode on top of that. This test spawns workers, checks lock
+correctness, measures message-passing throughput, and compares 1- vs 2-thread
+CPU work.
 
 ```python
 from thread import ThreadDiagnostics
@@ -370,14 +374,24 @@ What the bench actually shows on the P4:
 
 - **Message passing works well** — a lock-guarded mailbox sustains ~11k msg/s
   with ~130 µs latency. Threads are great for I/O-bound concurrency and IPC.
-- **CPU-bound Python does NOT parallelise** — MicroPython serialises all
-  bytecode behind a global VM lock (a GIL). Splitting math across 2 threads is
-  *slower* than 1 (the two cores just bounce the lock), so `performance()`
-  reports well under 1× — that result is **correct/expected**, not a bug.
+- **CPU-bound Python does NOT parallelise** — all Python runs on one core and a
+  GIL serialises bytecode. Splitting math across 2 threads is *slower* than 1
+  (GIL handoffs + context switches on the same core), so `performance()` reports
+  well under 1× — that result is **correct/expected**, not a bug.
 - **Contended `lock.acquire()` costs ~one RTOS tick** here, so heavy
   fine-grained locking is expensive (the lock sub-test uses a small count).
 - For real CPU parallelism use native code (`@micropython.viper` / C);
   `_thread` buys you concurrency, not compute throughput.
+
+### `_thread` vs `asyncio`
+
+Because threads give **no** parallelism here (one core + GIL), `asyncio` is the
+better default for concurrency: no GIL-handoff/context-switch overhead, no data
+races (cooperative single-thread, so no locks needed), lower RAM (no separate
+per-thread stack), and deterministic scheduling at `await` points. Reach for
+`_thread` only when you must run a *blocking* call you can't make async (one
+that releases the GIL while blocked) or a library only offers blocking APIs —
+and even then it's concurrency, not speedup.
 
 One-shot: `./deploy.sh --thread`.
 
